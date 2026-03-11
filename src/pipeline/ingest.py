@@ -1,6 +1,5 @@
 import os
 from pyspark.sql import SparkSession, DataFrame
-from pyspark.sql import functions as F
 from .schemas import get_book_schema, get_rating_schema, get_user_schema
 from .clean import clean_ratings, clean_books, clean_users
 from ..config import RAW_DATA_PATH, PROCESSED_DATA_PATH, BOOK_CSV, RATINGS_CSV, USERS_CSV

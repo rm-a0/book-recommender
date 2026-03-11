@@ -1,9 +1,4 @@
 import sys
-from src.pipeline.ingest import ingest_data
-from src.pipeline.features import build_all_features
-from src.pipeline.enrich import build_enriched_metadata
-from src.pipeline.embeddings import build_all_embeddings
-
 
 def main() -> None:
     steps = {"ingest", "features", "enrich", "embeddings", "pipeline"}
@@ -16,15 +11,19 @@ def main() -> None:
     step = args[0]
 
     if step in ("ingest", "pipeline"):
+        from src.pipeline.ingest import ingest_data
         ingest_data()
 
     if step in ("features", "pipeline"):
+        from src.pipeline.features import build_all_features
         build_all_features()
 
     if step in ("enrich", "pipeline"):
+        from src.pipeline.enrich import build_enriched_metadata
         build_enriched_metadata()
 
     if step in ("embeddings", "pipeline"):
+        from src.pipeline.embeddings import build_all_embeddings
         build_all_embeddings()
 
 

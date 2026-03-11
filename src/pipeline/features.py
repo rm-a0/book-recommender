@@ -166,7 +166,7 @@ def build_all_features(
     book_stats = compute_book_stats(books, ratings)
     save_dataframe(book_stats, artifacts_path, "book_stats.parquet")
 
-    # Age group -  dominant group per book + top books per group
+    # Age group - dominant group per book + top books per group
     print("Computing age group stats...")
     age_dom = compute_age_group_dominant(ratings, users)
     save_dataframe(age_dom, artifacts_path, "age_group_dominant.parquet")
