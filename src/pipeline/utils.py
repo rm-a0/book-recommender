@@ -15,5 +15,5 @@ def create_spark_session(name: str="BookRecommender") -> SparkSession:
 def save_dataframe(df: DataFrame, path: str, name: str) -> None:
     """Save a Spark DataFrame to Parquet format."""
     out = os.path.join(path, name)
-    df.write.mode("overwrite").parquet(path)
+    df.write.mode("overwrite").parquet(out)
     print(f"  Saved {name} -> {out}  ({df.count():,} rows)")

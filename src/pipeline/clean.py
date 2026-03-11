@@ -23,6 +23,7 @@ def clean_books(
     """Full books cleaning pipeline. Must be called AFTER clean_ratings."""
     books_df = drop_null_columns(books_df, ["ISBN", "Book-Title"])
     books_df = normalize_titles(books_df)
+    books_df = normalize_authors(books_df)
     books_df = clean_year_of_publication(books_df)
     books_df = drop_books_without_ratings(books_df, ratings_df)
     books_df = filter_min_ratings_per_book(books_df, ratings_df, min_ratings_per_book)
@@ -61,6 +62,10 @@ def filter_min_ratings_per_user(
 
 def normalize_titles(df: DataFrame, col: str = "Book-Title") -> DataFrame:
     """Lowercase, strip whitespace, normalize unicode."""
+    return df.withColumn(col, F.trim(F.lower(F.col(col))))
+
+def normalize_authors(df: DataFrame, col: str = "Book-Author") -> DataFrame:
+    """Lowercase, strip whitespace, normalize unicode for author matching."""
     return df.withColumn(col, F.trim(F.lower(F.col(col))))
 
 def clean_year_of_publication(df: DataFrame, col: str = "Year-Of-Publication") -> DataFrame:

@@ -16,11 +16,17 @@ def load_processed_data(spark: SparkSession, path: str = PROCESSED_DATA_PATH):
 
 def compute_item_item_similarity(ratings_df: DataFrame, min_common_raters: int = 3) -> DataFrame:
     """Returns DataFrame[isbn_a, isbn_b, similarity, common_raters]."""
-    # Create user - book - rating triples
-    r = ratings_df.select(
+    # Create user - book - rating triples, adjusted by per-user mean
+    raw = ratings_df.select(
         F.col("User-ID").alias("uid"),
         F.col("ISBN").alias("isbn"),
         F.col("Book-Rating").alias("rating")
+    )
+    # Adjust ratings by removing user ranking bias
+    user_means = raw.groupBy("uid").agg(F.avg("rating").alias("user_mean"))
+    r = (
+        raw.join(user_means, on="uid")
+        .withColumn("rating_adj", F.col("rating") - F.col("user_mean"))
     )
 
     # Self-join all pairs of books rated by the same user
@@ -31,8 +37,8 @@ def compute_item_item_similarity(ratings_df: DataFrame, min_common_raters: int =
         .select(
             F.col("a.isbn").alias("isbn_a"),
             F.col("b.isbn").alias("isbn_b"),
-            F.col("a.rating").alias("ra"),
-            F.col("b.rating").alias("rb")
+            F.col("a.rating_adj").alias("ra"),
+            F.col("b.rating_adj").alias("rb")
         )
     )
 

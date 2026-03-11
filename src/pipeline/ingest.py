@@ -39,9 +39,7 @@ def ingest_data(data_path: str = RAW_DATA_PATH, output_path: str = PROCESSED_DAT
     users_df = clean_users(users_df)
 
     # Drop ratings for books that got filtered out during cleaning
-    ratings_df = ratings_df.filter(
-        F.col("ISBN").isin([r.ISBN for r in books_df.select("ISBN").distinct().collect()])
-    )
+    ratings_df = ratings_df.join(books_df.select("ISBN"), on="ISBN", how="inner")
 
     print(f"  Clean: {books_df.count():,} books, {ratings_df.count():,} ratings, {users_df.count():,} users")
 
