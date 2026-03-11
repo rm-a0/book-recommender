@@ -4,18 +4,9 @@ from scipy.sparse import csr_matrix, save_npz
 from pyspark.sql import SparkSession, DataFrame
 from pyspark.sql import functions as F
 from pyspark.sql.window import Window
+from ..config import PROCESSED_DATA_PATH, ARTIFACTS_PATH, AGE_BINS
+from .utils import create_spark_session, save_dataframe
 
-PROCESSED_DATA_PATH = "data/processed"
-ARTIFACTS_PATH = "artifacts"
-
-def create_spark_session() -> SparkSession:
-    return (
-        SparkSession.builder
-        .appName("BookRecommender-Features")
-        .config("spark.driver.memory", "4g")
-        .master("local[*]")
-        .getOrCreate()
-    )
 
 def load_processed_data(spark: SparkSession, path: str = PROCESSED_DATA_PATH):
     books = spark.read.parquet(f"{path}/books.parquet")
@@ -99,11 +90,6 @@ def compute_book_stats(books_df: DataFrame, ratings_df: DataFrame) -> DataFrame:
     )
     return books_df.join(stats, on="ISBN", how="inner")
 
-AGE_BINS = [
-    (13, 17, "13-17"), (18, 24, "18-24"), (25, 34, "25-34"),
-    (35, 44, "35-44"), (45, 54, "45-54"), (55, 200, "55+"),
-]
-
 def _age_group_expr(col: str = "Age") -> F.Column:
     """Maps age to age group label based on predefined bins."""
     expr = F.lit(None).cast("string")
@@ -172,21 +158,16 @@ def build_all_features(
     # Book stats - rating count, mean, bayesian avg
     print("Computing book stats...")
     book_stats = compute_book_stats(books, ratings)
-    stats_path = os.path.join(artifacts_path, "book_stats.parquet")
-    book_stats.write.mode("overwrite").parquet(stats_path)
-    print(f"  Saved {stats_path}  ({book_stats.count():,} rows)")
+    save_dataframe(book_stats, artifacts_path, "book_stats.parquet")
 
     # Age group -  dominant group per book + top books per group
     print("Computing age group stats...")
     age_dom = compute_age_group_dominant(ratings, users)
-    age_dom_path = os.path.join(artifacts_path, "age_group_dominant.parquet")
-    age_dom.write.mode("overwrite").parquet(age_dom_path)
+    save_dataframe(age_dom, artifacts_path, "age_group_dominant.parquet")
 
     # For each age group, list all books rated in that group with their bayesian rating
     age_top = compute_age_group_top_books(ratings, users, book_stats)
-    age_top_path = os.path.join(artifacts_path, "age_group_top_books.parquet")
-    age_top.write.mode("overwrite").parquet(age_top_path)
-    print(f"  Saved age group artifacts  ({age_dom.count():,} books with dominant group)")
+    save_dataframe(age_top, artifacts_path, "age_group_top_books.parquet")
 
     spark.stop()
     print("Done.")

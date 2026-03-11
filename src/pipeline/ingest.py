@@ -3,23 +3,8 @@ from pyspark.sql import SparkSession, DataFrame
 from pyspark.sql import functions as F
 from .schemas import get_book_schema, get_rating_schema, get_user_schema
 from .clean import clean_ratings, clean_books, clean_users
-
-RAW_DATA_PATH = "data/raw"
-PROCESSED_DATA_PATH = "data/processed"
-
-BOOK_CSV = "Books.csv"
-RATINGS_CSV = "Ratings.csv"
-USERS_CSV = "Users.csv"
-
-def create_spark_session() -> SparkSession:
-    """Creates and configures a SparkSession for local development."""
-    return (
-        SparkSession.builder
-        .appName("BookRecommender-Ingest")
-        .config("spark.driver.memory", "4g")
-        .master("local[*]")
-        .getOrCreate()
-    )
+from ..config import RAW_DATA_PATH, PROCESSED_DATA_PATH, BOOK_CSV, RATINGS_CSV, USERS_CSV
+from .utils import create_spark_session, save_dataframe
 
 def _read_csv(spark: SparkSession, file_path: str, schema) -> DataFrame:
     """Helper function to read a CSV file with a given schema."""
@@ -34,12 +19,6 @@ def _read_csv(spark: SparkSession, file_path: str, schema) -> DataFrame:
         .schema(schema)
         .csv(file_path)
     )
-
-def _save_parquet(df: DataFrame, path: str, name: str) -> None:
-    """Save dataframe to Parquet"""
-    out = os.path.join(path, name)
-    df.write.mode("overwrite").parquet(out)
-    print(f"  Saved {name} -> {out}  ({df.count():,} rows)")
 
 def ingest_data(data_path: str = RAW_DATA_PATH, output_path: str = PROCESSED_DATA_PATH):
     """Main function to ingest raw CSV data, clean it, and save as Parquet for downstream use."""
@@ -69,9 +48,9 @@ def ingest_data(data_path: str = RAW_DATA_PATH, output_path: str = PROCESSED_DAT
     # Save to Parquet
     print("Saving processed Parquet...")
     os.makedirs(output_path, exist_ok=True)
-    _save_parquet(books_df, output_path, "books.parquet")
-    _save_parquet(ratings_df, output_path, "ratings.parquet")
-    _save_parquet(users_df, output_path, "users.parquet")
+    save_dataframe(books_df, output_path, "books.parquet")
+    save_dataframe(ratings_df, output_path, "ratings.parquet")
+    save_dataframe(users_df, output_path, "users.parquet")
 
     spark.stop()
     print("Done.")
