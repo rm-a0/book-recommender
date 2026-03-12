@@ -26,5 +26,5 @@ def get_user_schema() -> StructType:
     return StructType([
         StructField("User-ID", IntegerType(), False),
         StructField("Location", StringType(), True),
-        StructField("Age", IntegerType(), True),
+        StructField("Age", StringType(), True),
     ])

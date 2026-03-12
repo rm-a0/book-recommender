@@ -54,8 +54,12 @@ def compute_item_item_similarity(ratings_df: DataFrame, min_common_raters: int =
         .filter(F.col("common_raters") >= min_common_raters)
         .withColumn(
             "similarity",
-            F.col("dot_product") / (F.col("norm_a") * F.col("norm_b"))
+            F.when(
+                (F.col("norm_a") > 0) & (F.col("norm_b") > 0), # avoid division by zero
+                F.col("dot_product") / (F.col("norm_a") * F.col("norm_b"))
+            ).otherwise(F.lit(0.0))
         )
+        .filter(F.col("similarity") > 0.0) # reduce noise
         .select("isbn_a", "isbn_b", "similarity", "common_raters")
     )
 

@@ -113,8 +113,12 @@ def deduplicate_editions(
     )
 
 def clamp_age(df: DataFrame, min_age: int = 13, max_age: int = 100, col: str = "Age") -> DataFrame:
-    """Null out ages outside the plausible range."""
-    return df.withColumn(
-        col,
-        F.when((F.col(col) >= min_age) & (F.col(col) <= max_age), F.col(col)).otherwise(None),
+    """Clamp age to a reasonable range, null out non-numeric or out-of-range values."""
+    return (
+        df
+        .withColumn(col, F.expr(f"try_cast(try_cast(`{col}` as double) as int)"))
+        .withColumn(
+            col,
+            F.when((F.col(col) >= min_age) & (F.col(col) <= max_age), F.col(col)).otherwise(None),
+        )
     )
