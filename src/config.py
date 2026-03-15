@@ -41,3 +41,7 @@ FUSION_ALPHA = 0.6  # weight for CF in top_picks fusion (1-alpha for semantic)
 HIDDEN_GEM_CANDIDATE_POOL = 100  # CF candidates to consider for hidden gems reranking
 FUSION_CANDIDATE_POOL = 50  # candidates per strategy for fusion
 MIN_SEED_RATING = 7  # minimum rating to consider a user a "fan" of the seed book
+
+# Collaborative-filtering feature build thresholds
+CF_MIN_COMMON_RATERS = 2
+CF_MIN_SIMILARITY = 0.0

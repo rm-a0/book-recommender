@@ -4,7 +4,13 @@ from scipy.sparse import csr_matrix, save_npz
 from pyspark.sql import SparkSession, DataFrame
 from pyspark.sql import functions as F
 from pyspark.sql.window import Window
-from ..config import PROCESSED_DATA_PATH, ARTIFACTS_PATH, AGE_BINS
+from ..config import (
+    PROCESSED_DATA_PATH,
+    ARTIFACTS_PATH,
+    AGE_BINS,
+    CF_MIN_COMMON_RATERS,
+    CF_MIN_SIMILARITY,
+)
 from .utils import create_spark_session, save_dataframe
 
 
@@ -14,7 +20,11 @@ def load_processed_data(spark: SparkSession, path: str = PROCESSED_DATA_PATH):
     users = spark.read.parquet(f"{path}/users.parquet")
     return books, ratings, users
 
-def compute_item_item_similarity(ratings_df: DataFrame, min_common_raters: int = 3) -> DataFrame:
+def compute_item_item_similarity(
+    ratings_df: DataFrame,
+    min_common_raters: int = CF_MIN_COMMON_RATERS,
+    min_similarity: float = CF_MIN_SIMILARITY,
+) -> DataFrame:
     """Returns DataFrame[isbn_a, isbn_b, similarity, common_raters]."""
     # Create user - book - rating triples, adjusted by per-user mean
     raw = ratings_df.select(
@@ -59,7 +69,7 @@ def compute_item_item_similarity(ratings_df: DataFrame, min_common_raters: int =
                 F.col("dot_product") / (F.col("norm_a") * F.col("norm_b"))
             ).otherwise(F.lit(0.0))
         )
-        .filter(F.col("similarity") > 0.0) # reduce noise
+        .filter(F.col("similarity") >= F.lit(min_similarity))
         .select("isbn_a", "isbn_b", "similarity", "common_raters")
     )
 
@@ -159,7 +169,11 @@ def build_all_features(
 
     # Item-item similarity matrix
     print("Computing item-item similarity...")
-    sim_df = compute_item_item_similarity(ratings)
+    sim_df = compute_item_item_similarity(
+        ratings,
+        min_common_raters=CF_MIN_COMMON_RATERS,
+        min_similarity=CF_MIN_SIMILARITY,
+    )
     sparse_sim = similarity_to_sparse(sim_df, isbn_index)
     sim_path = os.path.join(artifacts_path, "item_similarity.npz")
     save_npz(sim_path, sparse_sim)
