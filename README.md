@@ -116,7 +116,7 @@ Then open:
 
 ## Azure Deployment
 
-- Deployed app: [https://book-recommender-api.azurewebsites.net/docs](https://book-recommender-api.azurewebsites.net)
+- Deployed app: [https://book-recommender-api.azurewebsites.net](https://book-recommender-api.azurewebsites.net)
 - Swagger UI:  [https://book-recommender-api.azurewebsites.net/docs](https://book-recommender-api.azurewebsites.net/docs)
 
 ## Project Structure
