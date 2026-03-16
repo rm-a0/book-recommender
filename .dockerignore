@@ -1,0 +1,17 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.swp
+*.tmp
+.git/
+.gitignore
+.github/
+.vscode/
+.notebooks/
+notebooks/
+data/raw/
+*.ipynb
+.env
+.venv/
+memories/

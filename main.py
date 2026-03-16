@@ -31,7 +31,15 @@ def _run_recommend(book_title: str, top_k: int = 10) -> int:
  
  
 def main() -> None:
-    steps = {"ingest", "features", "enrich", "embeddings", "pipeline", "recommend"}
+    steps = {
+        "ingest",
+        "features",
+        "enrich",
+        "embeddings",
+        "pipeline",
+        "recommend",
+        "app",
+    }
     args = sys.argv[1:]
  
     if not args or args[0] not in steps:
@@ -62,6 +70,10 @@ def main() -> None:
             sys.exit(1)
         query = " ".join(args[1:]).strip()
         sys.exit(_run_recommend(query))
+
+    if step == "app":
+        import uvicorn
+        uvicorn.run("src.api.main:app", host="0.0.0.0", port=8000, reload=False)
  
 if __name__ == "__main__":
     main()

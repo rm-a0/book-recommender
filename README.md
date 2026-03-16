@@ -51,7 +51,60 @@ python main.py embeddings   # Build sentence embeddings and FAISS index
 
 # Recommend (searches by title, runs all strategies)
 python main.py recommend "The Fellowship of the Ring"
+
+# Run API server
+python main.py serve
 ```
+
+## API
+
+The FastAPI server runs on port 8000.
+
+```bash
+python main.py serve
+```
+
+Core endpoints:
+
+- `GET /health`
+- `GET /strategies`
+- `GET /books/search?q=tolkien&max_results=5`
+- `GET /books/{isbn}`
+- `POST /recommend`
+- `POST /recommend/{strategy}`
+
+Example request:
+
+```bash
+curl -X POST http://localhost:8000/recommend \
+	-H "Content-Type: application/json" \
+	-d '{"book_title":"The Fellowship of the Ring","top_k":10}'
+```
+
+Swagger UI:
+
+- `http://localhost:8000/docs`
+
+## Docker
+
+```bash
+docker compose up --build
+```
+
+Then open:
+
+- `http://localhost:8000/health`
+- `http://localhost:8000/docs`
+
+## Azure Deployment
+
+Manual Azure Container Apps steps are documented in:
+
+- `docs/deploy-azure-container-apps.md`
+
+Production notes, shortcomings, and future improvements:
+
+- `docs/production-notes.md`
 
 ## Project Structure
 
@@ -83,7 +136,7 @@ book-recommender/
 │   │   ├── age_group.py         # Strategy: demographic age-group top books
 │   │   └── top_picks.py         # Strategy: CF + semantic fusion with RRF
 │   │
-│   └── api/                     # API layer (not yet implemented)
+│   └── api/                     # FastAPI endpoints and schemas
 │
 ├── data/
 │   ├── raw/                     # Original CSVs (Books.csv, Ratings.csv, Users.csv)
@@ -92,6 +145,9 @@ book-recommender/
 ├── artifacts/                   # Computed ML artifacts (parquets, matrices, embeddings)
 ├── notebooks/                   # Exploratory Jupyter notebooks
 ├── scripts/                     # Utility scripts
+├── Dockerfile                   # Container image for API service
+├── docker-compose.yml           # Local container run
+├── docs/                        # Deployment and production notes
 └── tests/                       # Strategy comparison scripts
 ```
 
@@ -216,4 +272,4 @@ The `RecommenderService` exposes:
 
 ## API
 
-Not yet implemented.
+TOOD
