@@ -114,18 +114,10 @@ Then open:
 - `http://localhost:8000/health`
 - `http://localhost:8000/docs`
 
-### Deploy
-
-Deployment runtime environments should install from `requirements.txt`, which is the exported non-pipeline dependency set used by Docker as well.
-
-```bash
-pip install -r requirements.txt
-```
-
 ## Azure Deployment
 
-Deployed app: `https://book-recommender-api.azurewebsites.net`
-Swagger UI:  `https://book-recommender-api.azurewebsites.net/docs`
+- Deployed app: [https://book-recommender-api.azurewebsites.net/docs](https://book-recommender-api.azurewebsites.net)
+- Swagger UI:  [https://book-recommender-api.azurewebsites.net/docs](https://book-recommender-api.azurewebsites.net/docs)
 
 ## Project Structure
 
@@ -377,4 +369,4 @@ Each `RecommendationSchema` contains:
 | `rating_count` | int | Explicit rating count |
 | `bayesian_rating` | float | Bayesian average rating |
 
-Swagger UI is available at `https://book-recommender-api.azurewebsites.net/docs`.
+Swagger UI is available at [https://book-recommender-api.azurewebsites.net/docs](https://book-recommender-api.azurewebsites.net/docs).
