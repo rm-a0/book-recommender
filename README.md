@@ -15,11 +15,12 @@ A book recommendation system built on the [Book-Crossings dataset](https://www.k
 
 ## Requirements
 
-- Python >= 3.14
+- Python >= 3.11
 - [uv](https://docs.astral.sh/uv/) (package and environment manager)
 
 | Package | Purpose |
 |---|---|
+| Base dependencies | Recommendation CLI, FastAPI app, artifact loading |
 | `pyspark` | Distributed data processing for the pipeline |
 | `pandas` / `pyarrow` | Parquet I/O and in-memory operations |
 | `scipy` | Sparse matrix storage and operations |
@@ -29,63 +30,80 @@ A book recommendation system built on the [Book-Crossings dataset](https://www.k
 | `httpx` | Async HTTP client for Open Library API |
 | `rapidfuzz` | Fuzzy string matching for book search |
 
-## Installation
+## Installation and Run
+
+Clone the repository first:
 
 ```bash
 git clone https://github.com/rm-a0/book-recommender
 cd book-recommender
-uv sync
 ```
 
-## Usage
+### Data Prerequisites
+
+Pipeline commands expect the Book-Crossings CSV files to exist in `data/raw/`:
+
+- `Books.csv`
+- `Ratings.csv`
+- `Users.csv`
+
+You can place them there manually, or use the helper script:
 
 ```bash
+uv sync --group dev
+uv run python scripts/download_data.py
+```
+
+### Pipeline
+
+Install the pipeline extras, then run the full build or an individual stage:
+
+```bash
+uv sync --group pipeline
+
 # Full pipeline (ingest -> features -> enrich -> embeddings)
-python main.py pipeline
+uv run python main.py pipeline
 
 # Individual stages
-python main.py ingest       # Clean and write processed parquets
-python main.py features     # Build CF matrix, book stats, age-group tables
-python main.py enrich       # Fetch Open Library metadata
-python main.py embeddings   # Build sentence embeddings and FAISS index
-
-# Recommend (searches by title, runs all strategies)
-python main.py recommend "The Fellowship of the Ring"
-
-# Run API server
-python main.py serve
+uv run python main.py ingest
+uv run python main.py features
+uv run python main.py enrich
+uv run python main.py embeddings
 ```
 
-## API
+### Recommend
 
-The FastAPI server runs on port 8000.
+The recommendation CLI only needs the base dependency set from `pyproject.toml`:
 
 ```bash
-python main.py serve
+uv sync
+uv run python main.py recommend "The Fellowship of the Ring"
 ```
 
-Core endpoints:
+### App
 
-- `GET /health`
-- `GET /strategies`
-- `GET /books/search?q=tolkien&max_results=5`
-- `GET /books/{isbn}`
-- `POST /recommend`
-- `POST /recommend/{strategy}`
-
-Example request:
+The FastAPI app also runs on the base dependency set:
 
 ```bash
-curl -X POST http://localhost:8000/recommend \
-	-H "Content-Type: application/json" \
-	-d '{"book_title":"The Fellowship of the Ring","top_k":10}'
+uv sync
+uv run python main.py app
 ```
 
-Swagger UI:
+Then open:
 
+- `http://localhost:8000/health`
 - `http://localhost:8000/docs`
 
-## Docker
+### Docker Run
+
+Docker uses the exported runtime dependencies from `requirements.txt`, not the pipeline extras.
+
+Before running Docker, make sure the runtime data already exists locally:
+
+- `artifacts/` must contain the precomputed recommendation artifacts
+- `data/processed/` must contain the processed parquet/cache files
+
+If you are starting from raw CSVs only, run the local pipeline first. The container serves the API; it does not build the pipeline artifacts.
 
 ```bash
 docker compose up --build
@@ -96,22 +114,25 @@ Then open:
 - `http://localhost:8000/health`
 - `http://localhost:8000/docs`
 
+### Deploy
+
+Deployment runtime environments should install from `requirements.txt`, which is the exported non-pipeline dependency set used by Docker as well.
+
+```bash
+pip install -r requirements.txt
+```
+
 ## Azure Deployment
 
-Manual Azure Container Apps steps are documented in:
-
-- `docs/deploy-azure-container-apps.md`
-
-Production notes, shortcomings, and future improvements:
-
-- `docs/production-notes.md`
+Deployed app: `https://book-recommender-api.azurewebsites.net`
+Swagger UI:  `https://book-recommender-api.azurewebsites.net/docs`
 
 ## Project Structure
 
 ```
 book-recommender/
 │
-├── main.py                      # CLI entry point
+├── main.py                      # CLI entry point for pipeline, recommend, and app
 ├── src/
 │   ├── config.py                # Paths, thresholds, and hyperparameters
 │   │
@@ -136,7 +157,7 @@ book-recommender/
 │   │   ├── age_group.py         # Strategy: demographic age-group top books
 │   │   └── top_picks.py         # Strategy: CF + semantic fusion with RRF
 │   │
-│   └── api/                     # FastAPI endpoints and schemas
+│   └── api/                     # FastAPI app, endpoints, and response schemas
 │
 ├── data/
 │   ├── raw/                     # Original CSVs (Books.csv, Ratings.csv, Users.csv)
@@ -272,4 +293,88 @@ The `RecommenderService` exposes:
 
 ## API
 
-TOOD
+The API is a thin FastAPI layer over `RecommenderService`. On startup it loads the service once in the application lifespan and exposes search, lookup, and recommendation endpoints on port `8000`.
+
+### Endpoints
+
+| Method | Path | Purpose | Notes |
+|---|---|---|---|
+| `GET` | `/health` | Service health and artifact readiness | Returns whether CF and embedding artifacts are available |
+| `GET` | `/strategies` | List registered strategies | Mirrors the strategy registry exposed by `RecommenderService` |
+| `GET` | `/books/search` | Search books by title substring | Query params: `q`, `max_results` (1-50) |
+| `GET` | `/books/{isbn}` | Fetch one book | Returns 404 if the ISBN is unknown |
+| `POST` | `/recommend` | Run all strategies for one seed book | Seed can be supplied by `isbn` or `book_title` |
+| `POST` | `/recommend/{strategy}` | Run one named strategy | Returns 400 for an unknown strategy |
+
+### Request Model
+
+Recommendation endpoints accept the same request body:
+
+| Field | Type | Notes |
+|---|---|---|
+| `book_title` | string \| null | Optional; title search is used when `isbn` is not provided |
+| `isbn` | string \| null | Optional; direct seed lookup |
+| `top_k` | int | Defaults to `10`; allowed range is `1-50` |
+
+Validation rule: at least one of `book_title` or `isbn` must be present.
+
+Example:
+
+```bash
+curl -X POST http://localhost:8000/recommend \
+	-H "Content-Type: application/json" \
+	-d '{"book_title":"The Fellowship of the Ring","top_k":10}'
+```
+
+### Response Models
+
+**`GET /health`**
+
+| Field | Type | Notes |
+|---|---|---|
+| `status` | string | Expected value: `"ok"` |
+| `has_cf` | bool | Whether collaborative-filtering artifacts loaded successfully |
+| `has_embeddings` | bool | Whether embedding artifacts loaded successfully |
+| `strategy_count` | int | Number of registered recommendation strategies |
+
+**`GET /books/search` and `GET /books/{isbn}`** return `BookSchema` objects:
+
+| Field | Type | Notes |
+|---|---|---|
+| `isbn` | string | Book identifier |
+| `title` | string | Normalised book title |
+| `author` | string | Normalised author name |
+| `rating_count` | int | Explicit rating count |
+| `bayesian_rating` | float | Precomputed Bayesian average rating |
+
+**`POST /recommend/{strategy}`** returns one `StrategyResultSchema`:
+
+| Field | Type | Notes |
+|---|---|---|
+| `strategy_name` | string | Internal strategy key, for example `readers_also` |
+| `strategy_label` | string | Human-readable label |
+| `strategy_description` | string | Short description shown in API/UI clients |
+| `recommendations` | list[`RecommendationSchema`] | Ordered strategy output |
+
+**`POST /recommend`** returns a `RecommendAllResponse`:
+
+| Field | Type | Notes |
+|---|---|---|
+| `seed_book` | `BookSchema` | Resolved input seed |
+| `strategies` | list[`StrategyResultSchema`] | One entry per registered strategy |
+
+Each `RecommendationSchema` contains:
+
+| Field | Type | Notes |
+|---|---|---|
+| `isbn` | string | Recommended book identifier |
+| `title` | string | Recommended book title |
+| `author` | string | Recommended book author |
+| `score` | float | Strategy-specific ranking score |
+| `strategy` | string | Strategy key attached to the recommendation |
+| `description` | string | Enriched Open Library description when available |
+| `subjects` | string | Comma-separated subject tags |
+| `rating_count` | int | Explicit rating count |
+| `bayesian_rating` | float | Bayesian average rating |
+
+Swagger UI is available at `https://book-recommender-api.azurewebsites.net/docs`.
