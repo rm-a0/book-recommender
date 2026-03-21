@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BookRec — Recommendation Engine</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- ── NAV ── -->
+<nav>
+  <span class="nav-logo">bookrec</span>
+  <div class="nav-status">
+    <div class="status-pip" id="pip"></div>
+    <span id="statusText">checking api…</span>
+  </div>
+</nav>
+
+<!-- ── HERO ── -->
+<section class="hero">
+  <p class="hero-kicker">Recommendation Engine</p>
+  <h1>What should you<br>read next?</h1>
+  <p class="hero-sub">Search for a book you love. Get recommendations across six strategies powered by collaborative filtering and semantic search.</p>
+
+  <div class="search-container">
+    <div class="search-input-wrap">
+      <svg class="search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+      </svg>
+      <input id="searchInput" type="text" placeholder="Search by title — e.g. The Hobbit" autocomplete="off" spellcheck="false"/>
+      <button class="search-clear" id="clearBtn" title="Clear">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+    <div class="search-dropdown" id="dropdown"></div>
+  </div>
+</section>
+
+<!-- ── MAIN ── -->
+<div id="main">
+  <div class="error-banner" id="errBanner"></div>
+
+  <!-- Seed strip -->
+  <div class="seed-strip" id="seedStrip">
+    <span class="seed-badge">Seed</span>
+    <div class="seed-info">
+      <div class="seed-title"  id="seedTitle">—</div>
+      <div class="seed-author" id="seedAuthor">—</div>
+    </div>
+    <div class="seed-stats" id="seedStats"></div>
+  </div>
+
+  <!-- Controls -->
+  <div class="controls-bar" id="controlsBar">
+    <div class="control-group">
+      <label class="control-label" for="topKInput">Results per strategy</label>
+      <div class="topk-wrap">
+        <input type="range" id="topKRange" min="1" max="50" value="10" step="1">
+        <input type="number" id="topKInput" min="1" max="50" value="10">
+      </div>
+    </div>
+    <button class="refresh-btn" id="refreshBtn" title="Reload with new settings">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
+        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+      </svg>
+      Reload
+    </button>
+  </div>
+
+  <!-- Tabs + panels -->
+  <div class="tabs-bar"   id="tabsBar"></div>
+  <div id="panelsWrap"></div>
+</div>
+
+<!-- ── BOOK MODAL ── -->
+<div class="modal-backdrop" id="modalBackdrop">
+  <div class="modal" id="modal">
+    <div class="modal-header">
+      <div>
+        <div class="modal-rank" id="modalRank"></div>
+        <div class="modal-title"  id="modalTitle"></div>
+        <div class="modal-author" id="modalAuthor"></div>
+      </div>
+      <button class="modal-close" id="modalClose" title="Close">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+
+    <div class="modal-stats" id="modalStats"></div>
+
+    <div class="modal-section" id="modalDescSection">
+      <div class="modal-section-label">Description</div>
+      <div class="modal-desc" id="modalDesc"></div>
+    </div>
+
+    <div class="modal-section" id="modalTagsSection">
+      <div class="modal-section-label">Subjects</div>
+      <div class="modal-tags" id="modalTags"></div>
+    </div>
+
+    <div class="modal-score-row">
+      <div class="modal-score-label">Relevance score</div>
+      <div class="modal-score-bar-wrap">
+        <div class="modal-score-bar" id="modalScoreBar"></div>
+      </div>
+      <div class="modal-score-val" id="modalScoreVal"></div>
+    </div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
