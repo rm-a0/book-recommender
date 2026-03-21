@@ -45,3 +45,8 @@ MIN_SEED_RATING = 7  # minimum rating to consider a user a "fan" of the seed boo
 # Collaborative-filtering feature build thresholds
 CF_MIN_COMMON_RATERS = 2
 CF_MIN_SIMILARITY = 0.0
+
+# Quality filtering at inference time
+MIN_BAYESIAN_RATING_FLOOR = 4.5   # top_picks: drop low-quality final candidates
+MIN_CANDIDATE_RATING_COUNT = 8     # top_picks: ignore very obscure books
+EDITION_SIMILARITY_THRESHOLD = 88    # rapidfuzz ratio to detect same-book editions

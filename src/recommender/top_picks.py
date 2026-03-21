@@ -1,8 +1,16 @@
 import math
 import numpy as np
-from ..config import FUSION_ALPHA, FUSION_CANDIDATE_POOL
+from rapidfuzz import fuzz
+from ..config import (
+    FUSION_ALPHA,
+    FUSION_CANDIDATE_POOL,
+    MIN_BAYESIAN_RATING_FLOOR,
+    MIN_CANDIDATE_RATING_COUNT,
+    EDITION_SIMILARITY_THRESHOLD,
+)
 from .base import Recommendation, RecommendationStrategy
 from .loader import ArtifactLoader
+
 
 class TopPicks(RecommendationStrategy):
     name = "top_picks"
@@ -13,49 +21,80 @@ class TopPicks(RecommendationStrategy):
         super().__init__(loader)
 
     def recommend(self, seed_isbn: str, top_k: int = 10) -> list[Recommendation]:
-        cf_candidates = self._get_cf_candidates(seed_isbn)
+        cf_candidates  = self._get_cf_candidates(seed_isbn)
         sem_candidates = self._get_semantic_candidates(seed_isbn)
 
         if not cf_candidates and not sem_candidates:
             return []
 
-        # Normalize scores to [0, 1] within each candidate set
+        # Build stat lookups once (avoid repeated DataFrame scans)
+        stats = self.loader.book_stats
+        rating_count_map: dict[str, int]   = {}
+        bayesian_map: dict[str, float] = {}
+        title_map: dict[str, str]   = {}
+        if not stats.empty:
+            rating_count_map = dict(zip(stats["ISBN"], stats["rating_count"]))
+            bayesian_map = dict(zip(stats["ISBN"], stats["bayesian_rating"]))
+            if "Book-Title" in stats.columns:
+                title_map = dict(zip(stats["ISBN"], stats["Book-Title"].fillna("").str.lower()))
+
+        seed_title = title_map.get(seed_isbn, "")
+
+        # Pre-filter candidates: drop books with too few ratings (noisy CF signal)
+        def _keep(isbn: str) -> bool:
+            if isbn == seed_isbn:
+                return False
+            if rating_count_map.get(isbn, 0) < MIN_CANDIDATE_RATING_COUNT:
+                return False
+            # Drop likely editions of the seed book
+            if seed_title:
+                candidate_title = title_map.get(isbn, "")
+                if candidate_title and fuzz.ratio(candidate_title, seed_title) >= EDITION_SIMILARITY_THRESHOLD:
+                    return False
+            return True
+
+        cf_candidates = [(isbn, s) for isbn, s in cf_candidates  if _keep(isbn)]
+        sem_candidates = [(isbn, s) for isbn, s in sem_candidates if _keep(isbn)]
+
+        # Normalize scores to [0, 1] within each list
         cf_candidates = _normalize_scores(cf_candidates)
         sem_candidates = _normalize_scores(sem_candidates)
 
-        # Build rank maps for reciprocal rank fusion
-        cf_ranks = {isbn: rank for rank, (isbn, _) in enumerate(cf_candidates, 1)}
+        # Rank maps for Reciprocal Rank Fusion bonus
+        cf_ranks = {isbn: rank for rank, (isbn, _) in enumerate(cf_candidates,  1)}
         sem_ranks = {isbn: rank for rank, (isbn, _) in enumerate(sem_candidates, 1)}
 
-        cf_scores = dict(cf_candidates)
+        cf_scores  = dict(cf_candidates)
         sem_scores = dict(sem_candidates)
 
         all_isbns = set(cf_scores) | set(sem_scores)
-        count_map = self._get_rating_count_map()
 
         scored: list[tuple[str, float]] = []
         for isbn in all_isbns:
-            if isbn == seed_isbn:
-                continue
-            cf_s = cf_scores.get(isbn, 0.0)
+            cf_s  = cf_scores.get(isbn,  0.0)
             sem_s = sem_scores.get(isbn, 0.0)
 
             # Linear fusion
             fused = FUSION_ALPHA * cf_s + (1 - FUSION_ALPHA) * sem_s
 
-            # Reciprocal rank fusion bonus for books appearing in both lists
+            # RRF bonus for books appearing in both lists
             if isbn in cf_ranks and isbn in sem_ranks:
-                k = 60  # smoothing constant
-                rrf = 1.0 / (k + cf_ranks[isbn]) + 1.0 / (k + sem_ranks[isbn])
-                fused += rrf
+                k = 60
+                fused += 1.0 / (k + cf_ranks[isbn]) + 1.0 / (k + sem_ranks[isbn])
 
             # Mild popularity penalty
-            rating_count = count_map.get(isbn, 1)
-            fused = fused / math.log(1 + 0.3 * rating_count)
+            rc = rating_count_map.get(isbn, 1)
+            fused = fused / math.log(1 + 0.3 * rc)
 
             scored.append((isbn, fused))
 
         scored.sort(key=lambda x: x[1], reverse=True)
+
+        # Quality floor: drop books below minimum Bayesian rating
+        scored = [
+            (isbn, s) for isbn, s in scored
+            if bayesian_map.get(isbn, 0.0) >= MIN_BAYESIAN_RATING_FLOOR
+        ]
 
         results: list[Recommendation] = []
         for isbn, score in scored[:top_k]:
@@ -63,7 +102,6 @@ class TopPicks(RecommendationStrategy):
         return results
 
     def _get_cf_candidates(self, seed_isbn: str) -> list[tuple[str, float]]:
-        """Get top-N CF candidates as (isbn, similarity) pairs."""
         if not self.loader.has_cf:
             return []
         idx = self.loader.isbn_index.get(seed_isbn)
@@ -84,7 +122,6 @@ class TopPicks(RecommendationStrategy):
         return candidates
 
     def _get_semantic_candidates(self, seed_isbn: str) -> list[tuple[str, float]]:
-        """Get top-N semantic candidates as (isbn, cosine_similarity) pairs."""
         if not self.loader.has_embeddings:
             return []
         try:
@@ -93,9 +130,7 @@ class TopPicks(RecommendationStrategy):
             return []
 
         seed_emb = self.loader.book_embeddings[seed_idx : seed_idx + 1]
-        distances, indices = self.loader.faiss_index.search(
-            seed_emb, FUSION_CANDIDATE_POOL + 1
-        )
+        distances, indices = self.loader.faiss_index.search(seed_emb, FUSION_CANDIDATE_POOL + 1)
 
         candidates: list[tuple[str, float]] = []
         for dist, idx in zip(distances[0], indices[0]):
@@ -106,15 +141,8 @@ class TopPicks(RecommendationStrategy):
                 candidates.append((isbn, float(dist)))
         return candidates
 
-    def _get_rating_count_map(self) -> dict[str, int]:
-        stats = self.loader.book_stats
-        if stats.empty or "rating_count" not in stats.columns:
-            return {}
-        return dict(zip(stats["ISBN"], stats["rating_count"]))
-
 
 def _normalize_scores(candidates: list[tuple[str, float]]) -> list[tuple[str, float]]:
-    """Min-max normalize scores to [0, 1]."""
     if not candidates:
         return candidates
     scores = [s for _, s in candidates]
