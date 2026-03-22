@@ -27,7 +27,7 @@ def clean_books(
     books_df = clean_year_of_publication(books_df)
     books_df = drop_books_without_ratings(books_df, ratings_df)
     books_df = filter_min_ratings_per_book(books_df, ratings_df, min_ratings_per_book)
-    books_df = deduplicate_editions(books_df)
+    books_df = deduplicate_editions(books_df, ratings_df)
     return books_df
 
 def clean_users(users_df: DataFrame, min_age: int = 13, max_age: int = 100) -> DataFrame:
@@ -97,20 +97,37 @@ def filter_min_ratings_per_book(
     return books_df.join(book_counts.select(isbn_col), on=isbn_col, how="inner")
 
 def deduplicate_editions(
-    df: DataFrame, 
+    df: DataFrame,
+    ratings_df: DataFrame | None = None,
     title_col: str = "Book-Title", 
     author_col: str = "Book-Author"
 ) -> DataFrame:
     """
     When multiple ISBNs share the same title + author, keep the one 
-    with the lowest ISBN. This collapses different editions into one entry.
+    with the most ratings. This collapses different editions into one entry.
+    If ratings_df is not provided, falls back to keeping lowest ISBN.
     """
-    w = Window.partitionBy(title_col, author_col).orderBy("ISBN")
-    return (
-        df.withColumn("_rn", F.row_number().over(w))
-        .filter(F.col("_rn") == 1)
-        .drop("_rn")
-    )
+    if ratings_df is not None:
+        # Compute rating count per ISBN
+        rating_counts = ratings_df.groupBy("ISBN").count().withColumnRenamed("count", "rating_count")
+        df = df.join(rating_counts, on="ISBN", how="left").fillna(0, subset=["rating_count"])
+        # Order by rating_count descending, ISBN ascending as tiebreaker
+        w = Window.partitionBy(title_col, author_col).orderBy(F.col("rating_count").desc(), "ISBN")
+        result = (
+            df.withColumn("_rn", F.row_number().over(w))
+            .filter(F.col("_rn") == 1)
+            .drop("_rn", "rating_count")
+        )
+    else:
+        # Fallback: order by lowest ISBN
+        w = Window.partitionBy(title_col, author_col).orderBy("ISBN")
+        result = (
+            df.withColumn("_rn", F.row_number().over(w))
+            .filter(F.col("_rn") == 1)
+            .drop("_rn")
+        )
+    
+    return result
 
 def clamp_age(df: DataFrame, min_age: int = 13, max_age: int = 100, col: str = "Age") -> DataFrame:
     """Clamp age to a reasonable range, null out non-numeric or out-of-range values."""

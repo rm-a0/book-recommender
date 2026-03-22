@@ -183,7 +183,7 @@ Reads the three raw CSVs, cleans them, and writes processed Parquet files to `da
 | `Publisher` | string | |
 | `Image-URL-S/M/L` | string | Cover image URLs |
 
-Cleaning: editions with the same title + author collapsed to the lowest ISBN; books with fewer than 5 ratings dropped.
+Cleaning: editions with the same title + author collapsed to the one with most ratings; books with fewer than 5 ratings dropped.
 
 **`ratings.parquet`**
 
