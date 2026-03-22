@@ -318,10 +318,10 @@
             <ul>
               <li>drop nulls - ISBN, Book-Title</li>
               <li>lowercase + strip - titles and authors</li>
-              <li>clean year - raw has "DK Publishing", 0, 2037</li>
+              <li>clean year - raw has years like 0 and 2037</li>
               <li>drop books with no ratings after ratings clean</li>
               <li><b>min 5 raters per book</b> - CF stat reliability</li>
-              <li>deduplicate editions - same title+author, keep lowest ISBN</li>
+              <li>deduplicate editions - same title+author, keep most rated</li>
             </ul>
           </div>
         </div>
