@@ -1,0 +1,1039 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Book Recommender</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.1.0/reveal.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@200;300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:    #111111;
+  --s1:    #1a1a1a;
+  --s2:    #222222;
+  --b1:    #2c2c2c;
+  --b2:    #3a3a3a;
+  --t1:    #ececec;
+  --t2:    #999999;
+  --t3:    #555555;
+  --amber: #c9a96e;
+  --green: #6abf7b;
+  --red:   #e07070;
+  --blue:  #6b9ee0;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+.reveal-viewport { background: var(--bg); }
+.reveal {
+  font-family: 'Outfit', sans-serif;
+  font-size: 20px;
+  font-weight: 300;
+  color: var(--t1);
+}
+.reveal .slides section { text-align: left; padding: 0 40px; height: 100%; overflow: visible; }
+
+/* Graph hover zoom - handled via JS overlay */
+.graph-zoom {
+  display: block;
+  cursor: zoom-in;
+  border-radius: 5px;
+  position: relative;
+  z-index: 1;
+}
+
+/* Zoom overlay */
+#graph-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(0,0,0,0.72);
+  align-items: center;
+  justify-content: center;
+  cursor: zoom-out;
+}
+#graph-overlay.visible {
+  display: flex;
+}
+#graph-overlay img {
+  max-width: 88vw;
+  max-height: 88vh;
+  object-fit: contain;
+  border-radius: 7px;
+  box-shadow: 0 16px 64px rgba(0,0,0,0.8);
+  transform: scale(0.88);
+  opacity: 0;
+  transition: transform 0.45s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.45s ease;
+}
+#graph-overlay.visible img {
+  transform: scale(1);
+  opacity: 1;
+}
+
+.reveal h1 {
+  font-family: 'Outfit', sans-serif;
+  font-weight: 200; font-size: 3em;
+  letter-spacing: -0.03em; line-height: 1.1;
+  color: var(--t1); text-transform: none; margin: 0;
+}
+.reveal h2 {
+  font-family: 'Outfit', sans-serif;
+  font-weight: 300; font-size: 1.05em;
+  color: var(--t2); text-transform: none;
+  margin: 0 0 16px 0; border: none; padding: 0;
+}
+
+.label {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.55em; letter-spacing: 0.16em;
+  text-transform: uppercase; color: var(--t3);
+  display: block; margin-bottom: 8px;
+}
+.section-tag {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.52em; letter-spacing: 0.16em;
+  text-transform: uppercase; color: var(--t3);
+  border: 1px solid var(--b1); border-radius: 3px;
+  padding: 3px 8px; display: inline-block; margin-bottom: 10px;
+}
+
+.cols-2    { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.cols-3    { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+.cols-4060 { display: grid; grid-template-columns: 1fr 1.5fr; gap: 16px; }
+.cols-6040 { display: grid; grid-template-columns: 1.5fr 1fr; gap: 16px; }
+
+.slide-body { padding-top: 42px; height: 100%; display: flex; flex-direction: column; }
+
+.card {
+  background: var(--s1);
+  border: 1px solid var(--b1);
+  border-radius: 6px; padding: 12px 16px;
+}
+
+/* Improvements box - amber/yellow */
+.improve {
+  background: rgba(201,169,110,0.06);
+  border: 1px solid rgba(201,169,110,0.25);
+  border-radius: 5px; padding: 10px 14px;
+}
+.improve .improve-title {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.62em; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--amber);
+  margin-bottom: 6px; font-weight: 500;
+}
+.improve ul li { color: var(--t2) !important; }
+.improve ul li b { color: var(--amber) !important; }
+.improve ul li::before { color: var(--amber) !important; }
+
+/* Bullets */
+.reveal ul { list-style: none; margin: 0; padding: 0; }
+.reveal ul li {
+  font-size: 0.78em; color: var(--t2);
+  padding: 3px 0 3px 14px;
+  position: relative; line-height: 1.45; font-weight: 300;
+}
+.reveal ul li::before { content: '-'; position: absolute; left: 0; color: var(--t3); }
+.reveal ul li b { color: var(--t1); font-weight: 500; }
+.reveal ul li code {
+  font-family: 'DM Mono', monospace; font-size: 0.86em;
+  color: var(--amber); background: var(--s2);
+  padding: 1px 5px; border-radius: 3px;
+}
+
+/* Stat strip */
+.stat-strip { display: flex; border: 1px solid var(--b1); border-radius: 5px; overflow: hidden; }
+.stat-item  { flex: 1; padding: 9px 12px; border-right: 1px solid var(--b1); }
+.stat-item:last-child { border-right: none; }
+.stat-v { font-family: 'DM Mono', monospace; font-size: 1.1em; color: var(--t1); font-weight: 500; }
+.stat-l { font-size: 0.58em; color: var(--t3); letter-spacing: 0.06em; text-transform: uppercase; font-family: 'DM Mono', monospace; margin-top: 2px; }
+
+/* Graph placeholder */
+.graph-ph {
+  border: 1px dashed var(--b2); border-radius: 5px;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 5px; color: var(--t3);
+  font-family: 'DM Mono', monospace; font-size: 0.58em;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  text-align: center; padding: 14px;
+}
+
+/* Collapsible cleaning */
+.clean-group { border: 1px solid var(--b1); border-radius: 5px; overflow: hidden; cursor: pointer; user-select: none; }
+.clean-group-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 9px 14px; background: var(--s1); transition: background 0.15s;
+}
+.clean-group-header:hover { background: var(--s2); }
+.clean-group-name  { font-size: 0.82em; font-weight: 500; color: var(--t1); }
+.clean-group-count { font-family: 'DM Mono', monospace; font-size: 0.58em; color: var(--t3); }
+.clean-group-icon  { font-family: 'DM Mono', monospace; font-size: 0.9em; color: var(--t3); transition: transform 0.2s; }
+.clean-group.open .clean-group-icon { transform: rotate(45deg); }
+.clean-group-body  { max-height: 0; overflow: hidden; transition: max-height 0.28s ease; background: var(--bg); }
+.clean-group.open .clean-group-body { max-height: 220px; }
+.clean-group-body ul { padding: 8px 14px 10px; }
+
+/* Pipeline boxes */
+.pipe-box { background: var(--s1); border: 1px solid var(--b2); border-radius: 5px; padding: 9px 16px; text-align: center; }
+.pipe-box .pb-label { font-family: 'DM Mono', monospace; font-size: 0.52em; color: var(--t3); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 2px; }
+.pipe-box .pb-name  { font-size: 0.85em; font-weight: 500; color: var(--t1); }
+.pipe-box .pb-sub   { font-size: 0.68em; color: var(--t2); margin-top: 2px; }
+
+.harrow { display: flex; align-items: center; justify-content: center; height: 1px; background: var(--b2); position: relative; flex-shrink: 0; align-self: center; }
+.harrow::after { content: ''; position: absolute; right: -5px; top: -4px; border-top: 4px solid transparent; border-bottom: 4px solid transparent; border-left: 6px solid var(--b2); }
+
+/* Eval columns */
+.eval-col h3 { font-family: 'DM Mono', monospace; font-size: 0.65em; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 8px; font-weight: 400; }
+.eval-col.works h3  { color: var(--green); }
+.eval-col.breaks h3 { color: var(--red); }
+
+/* Title + Demo slides */
+.title-slide { display: flex; flex-direction: column; justify-content: center; height: 100%; padding: 60px !important; }
+.title-meta  { font-family: 'DM Mono', monospace; font-size: 0.58em; color: var(--t3); margin-top: 28px; line-height: 2.1; letter-spacing: 0.04em; }
+.demo-slide  { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; text-align: center; }
+
+.reveal .progress { background: var(--b1); }
+.reveal .progress span { background: var(--t3); }
+.reveal .controls { color: var(--t3); }
+
+/* Clickable demo links */
+.demo-link {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.75em;
+  color: var(--blue);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+  transition: color 0.15s;
+  display: block;
+  margin-top: 4px;
+}
+.demo-link:hover { color: var(--t1); }
+</style>
+</head>
+<body>
+<div class="reveal">
+<div class="slides">
+
+<!-- ============================================================ -->
+<!-- SLIDE 1: TITLE                                              -->
+<!-- ============================================================ -->
+<section>
+<div class="title-slide">
+  <span class="label">Book Recommendation System</span>
+  <h1>Recommender</h1>
+  <div class="title-meta">
+    Dataset &nbsp; Book-Crossings (Kaggle) &nbsp; 271k books / 1.1M ratings<br>
+    Stack &nbsp;&nbsp; PySpark + MiniLM + FAISS + FastAPI + Docker + Azure<br>
+    Live &nbsp;&nbsp;&nbsp; book-recommender-api.azurewebsites.net
+  </div>
+</div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 2: PIPELINE OVERVIEW                                  -->
+<!-- ============================================================ -->
+<section>
+<div class="slide-body">
+  <span class="section-tag">Overview</span>
+  <h2>Pipeline</h2>
+
+  <div style="display:grid; grid-template-columns:1fr 24px 1fr 24px 1fr 24px 1fr; align-items:center; gap:0; margin-bottom:18px">
+    <div class="pipe-box"><div class="pb-label">Stage 1</div><div class="pb-name">Ingest</div><div class="pb-sub">PySpark clean + Parquet</div></div>
+    <div class="harrow"></div>
+    <div class="pipe-box"><div class="pb-label">Stage 2</div><div class="pb-name">Features</div><div class="pb-sub">CF matrix + stats</div></div>
+    <div class="harrow"></div>
+    <div class="pipe-box"><div class="pb-label">Stage 3</div><div class="pb-name">Enrich</div><div class="pb-sub">Open Library API</div></div>
+    <div class="harrow"></div>
+    <div class="pipe-box"><div class="pb-label">Stage 4</div><div class="pb-name">Embeddings</div><div class="pb-sub">MiniLM + FAISS</div></div>
+  </div>
+
+  <div class="cols-2" style="flex:1; align-items:start">
+    <div class="card">
+      <div class="label">Artifacts produced</div>
+      <ul>
+        <li><code>item_similarity.npz</code> CF sparse matrix</li>
+        <li><code>isbn_index.json</code> ISBN -> integer matrix position</li>
+        <li><code>book_stats.parquet</code> ratings + Bayesian avg</li>
+        <li><code>age_group_*.parquet</code> demographic data</li>
+        <li><code>book_metadata_enriched.parquet</code> descriptions + subjects</li>
+        <li><code>book_embeddings.npy</code> 22k x 384 float vectors</li>
+        <li><code>faiss_index.bin</code> exact cosine index</li>
+        <li><code>embedding_isbn_map.json</code> position -> ISBN</li>
+      </ul>
+    </div>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:0; border:1px solid var(--b1); border-radius:6px; overflow:hidden; align-self:start">
+      <div class="stat-item"><div class="stat-v">271k</div><div class="stat-l">Raw books</div></div>
+      <div class="stat-item" style="border-left:1px solid var(--b1)"><div class="stat-v">22k</div><div class="stat-l">After cleaning</div></div>
+      <div class="stat-item" style="border-top:1px solid var(--b1)"><div class="stat-v">1.1M</div><div class="stat-l">Raw ratings</div></div>
+      <div class="stat-item" style="border-top:1px solid var(--b1);border-left:1px solid var(--b1)"><div class="stat-v">433k</div><div class="stat-l">Explicit ratings</div></div>
+      <div class="stat-item" style="border-top:1px solid var(--b1)"><div class="stat-v">384</div><div class="stat-l">Embedding dim</div></div>
+      <div class="stat-item" style="border-top:1px solid var(--b1);border-left:1px solid var(--b1)"><div class="stat-v">6</div><div class="stat-l">Strategies</div></div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 3: CLEANING                                           -->
+<!-- ============================================================ -->
+<section>
+<div class="slide-body">
+  <span class="section-tag">Stage 1</span>
+  <h2>Ingestion + Cleaning</h2>
+
+  <div class="cols-4060" style="flex:1; align-items:stretch; overflow:hidden; min-height:0">
+    <div style="display:flex; flex-direction:column; gap:8px">
+
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div class="clean-group" id="group-ratings">
+          <div class="clean-group-header">
+            <span class="clean-group-name">Ratings</span>
+            <div style="display:flex;align-items:center;gap:12px">
+              <span class="clean-group-count">1.1M to 433k</span>
+              <span class="clean-group-icon">+</span>
+            </div>
+          </div>
+          <div class="clean-group-body">
+            <ul>
+              <li>drop nulls - User-ID, ISBN, Rating</li>
+              <li>drop duplicate (User-ID, ISBN) pairs</li>
+              <li><b>drop 715k implicit 0-ratings</b> - disliked vs unread indistinguishable</li>
+              <li>min 3 ratings per user</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="clean-group" id="group-books">
+          <div class="clean-group-header">
+            <span class="clean-group-name">Books</span>
+            <div style="display:flex;align-items:center;gap:12px">
+              <span class="clean-group-count">271k to 22k</span>
+              <span class="clean-group-icon">+</span>
+            </div>
+          </div>
+          <div class="clean-group-body">
+            <ul>
+              <li>drop nulls - ISBN, Book-Title</li>
+              <li>lowercase + strip - titles and authors</li>
+              <li>clean year - raw has "DK Publishing", 0, 2037</li>
+              <li>drop books with no ratings after ratings clean</li>
+              <li><b>min 5 raters per book</b> - CF stat reliability</li>
+              <li>deduplicate editions - same title+author, keep lowest ISBN</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="clean-group" id="group-users">
+          <div class="clean-group-header">
+            <span class="clean-group-name">Users</span>
+            <div style="display:flex;align-items:center;gap:12px">
+              <span class="clean-group-count">278k kept</span>
+              <span class="clean-group-icon">+</span>
+            </div>
+          </div>
+          <div class="clean-group-body">
+            <ul>
+              <li>drop null User-ID</li>
+              <li>clamp age 13-100 - 110k nulls, values like 0 and 200+</li>
+              <li>string to double to int - handles "25.0" format</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="improve">
+        <div class="improve-title">Improvements</div>
+        <ul>
+          <li><b>editions keep only one ISBN</b> - aggregate ratings across all editions instead</li>
+          <li><b>fixed min-5 threshold</b> - dynamic filter based on rater activity sum</li>
+          <li><b>age as demographic proxy</b> - cluster users by rating behaviour</li>
+          <li><b>no evaluation metric</b> - tune thresholds against precision@k or NDCG</li>
+        </ul>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:12px;overflow:visible;min-height:0">
+      <img src="graphs/graph1_rating_dist.png" class="graph-zoom" style="flex:1; min-height:0; width:100%; object-fit:contain; transform-origin: right center;">
+      <img src="graphs/graph2_long_tail.png" class="graph-zoom" style="flex:1; min-height:0; width:100%; object-fit:contain; transform-origin: right center;">
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 4: CF                                                 -->
+<!-- ============================================================ -->
+<section>
+<div class="slide-body">
+  <span class="section-tag">Stage 2</span>
+  <h2>Collaborative Filtering</h2>
+
+  <div class="cols-2" style="flex:1; align-items:start">
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div class="card">
+        <div class="label">O(1) lookup table</div>
+        <ul>
+          <li><code>isbn_index.json</code> ISBN -> integer matrix position</li>
+          <li><code>item_similarity.npz</code> scipy CSR sparse matrix</li>
+          <li>inference: one row slice, no DB query, no recomputation</li>
+          <li>reused by ReadersAlso, HiddenGems, TopPicks</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="label">Build (offline, PySpark)</div>
+        <ul>
+          <li>self-join on User-ID - all co-rated book pairs</li>
+          <li>filter isbn_a &lt; isbn_b - each pair once</li>
+          <li>adjusted cosine - subtract user mean before dot product</li>
+          <li>removes per-user scale bias</li>
+          <li>store only positive similarities</li>
+        </ul>
+      </div>
+
+      <div class="improve">
+        <div class="improve-title">Improvements</div>
+        <ul>
+          <li><b>no confidence weighting</b> - sim over 2 shared raters equals sim over 200, fix: shrinkage sim x n/(n+lambda)</li>
+          <li><b>item-item only</b> - add user-user matrix, reweight at inference by rater similarity to query user</li>
+          <li><b>explicit CF</b> - replace with NCF or ALS once feedback loop exists</li>
+          <li><b>two-tower</b> - user + item towers in shared embedding space (see prod arch)</li>
+        </ul>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <img src="graphs/graph3_cf_similarity.png" class="graph-zoom" style="min-height:200px; flex:1; width:100%; object-fit:contain; transform-origin: left center;">
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 5: ENRICHMENT                                         -->
+<!-- ============================================================ -->
+<section>
+<div class="slide-body">
+  <span class="section-tag">Stage 3</span>
+  <h2>Open Library Enrichment</h2>
+
+  <div class="cols-2" style="flex:1; align-items:start">
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div class="card">
+        <div class="label">Why</div>
+        <ul>
+          <li>raw dataset - title, author, year, publisher only</li>
+          <li>semantic search needs descriptions + subject tags</li>
+          <li>without enrichment - every book embeds as "Title by Author"</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="label">How</div>
+        <ul>
+          <li>batch - 100 ISBNs per request, 220 requests not 22,000</li>
+          <li>concurrent - 10 batches in parallel, 100/min rate limit</li>
+          <li>cache - openlibrary_cache.json, reruns skip fetched</li>
+          <li>flush every 1000 ISBNs - crash recovery</li>
+          <li>fallback - "Title by Author" if no entry found</li>
+        </ul>
+      </div>
+
+      <div class="improve">
+        <div class="improve-title">Improvements</div>
+        <ul>
+          <li><b>partial coverage</b> - switch to Google Books API or Open Library bulk download</li>
+          <li><b>static scraping</b> - Goodreads / Amazon for richer descriptions</li>
+          <li><b>title-only fallback is weak</b> - LLM-generated descriptions for uncovered books</li>
+          <li><b>subjects comma-separated string</b> - store as array, enable tag-based filtering</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="card" style="height:fit-content">
+      <div class="label">Output: book_metadata_enriched.parquet</div>
+      <ul>
+        <li>ISBN, title, author</li>
+        <li>description - Open Library or fallback</li>
+        <li>subjects - up to 20 tags, comma-separated</li>
+      </ul>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 6: EMBEDDINGS                                         -->
+<!-- ============================================================ -->
+<section>
+<div class="slide-body">
+  <span class="section-tag">Stage 4</span>
+  <h2>Semantic Embeddings</h2>
+
+  <div class="cols-2" style="flex:1; align-items:start">
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div class="card">
+        <div class="label">Input</div>
+        <ul>
+          <li>"Title by Author. Description. Genres: subjects"</li>
+          <li>title+author always present as anchor</li>
+          <li>description skipped if equals fallback</li>
+          <li>"Genres:" prefix - signals categorical not prose</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="label">Model + Index</div>
+        <ul>
+          <li>all-MiniLM-L6-v2 - 384-dim, fast, strong zero-shot</li>
+          <li>L2 normalize - inner product becomes cosine similarity</li>
+          <li>FAISS IndexFlatIP - exact search, no approximation</li>
+          <li>22k books - brute force under 1ms per query</li>
+          <li>ISBN map - position -> ISBN, FAISS returns positions not strings</li>
+        </ul>
+      </div>
+      <div class="improve">
+        <div class="improve-title">Improvements</div>
+        <ul>
+          <li><b>in-memory index</b> - every pod loads its own copy, move to MongoDB Atlas or Pinecone</li>
+          <li><b>exact search at scale</b> - switch IndexFlatIP to IndexIVFPQ at 1M+ books</li>
+          <li><b>MiniLM quality ceiling</b> - E5 or MPNet for better embeddings</li>
+          <li><b>text-only embeddings</b> - add cover image features (multi-modal)</li>
+          <li><b>generic pretrain</b> - fine-tune on book corpus or interaction data</li>
+        </ul>
+      </div>
+    </div>
+    <img src="graphs/graph4_umap.png" class="graph-zoom" style="height:100%; width:100%; object-fit:contain; transform-origin: left center;">
+  </div>
+</div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 7: STRATEGY PATTERN                                   -->
+<!-- ============================================================ -->
+<section>
+<div class="slide-body">
+  <span class="section-tag">Recommender</span>
+  <h2>Strategy Pattern</h2>
+
+  <svg viewBox="0 0 1160 440" style="width:100%;flex:1" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <marker id="ah" markerWidth="7" markerHeight="7" refX="4" refY="3.5" orient="auto">
+        <path d="M0,0 L0,7 L7,3.5 z" fill="#3a3a3a"/>
+      </marker>
+    </defs>
+
+    <!-- Abstract base class - wide, centered -->
+    <rect x="280" y="10" width="600" height="72" rx="4" fill="#1a1a1a" stroke="#2c2c2c"/>
+    <text x="580" y="30" text-anchor="middle" font-family="DM Mono,monospace" font-size="9" fill="#555" letter-spacing="1">abstract base class</text>
+    <text x="580" y="52" text-anchor="middle" font-family="Outfit,sans-serif" font-size="17" fill="#ececec" font-weight="300">RecommendationStrategy</text>
+    <line x1="280" y1="60" x2="880" y2="60" stroke="#2c2c2c"/>
+    <text x="580" y="74" text-anchor="middle" font-family="DM Mono,monospace" font-size="9" fill="#666">recommend(isbn, top_k) &nbsp;/&nbsp; _build_recommendation(isbn, score)</text>
+
+    <!-- Trunk line down -->
+    <line x1="580" y1="82" x2="580" y2="116" stroke="#3a3a3a"/>
+    <!-- Horizontal bar -->
+    <line x1="103" y1="116" x2="1057" y2="116" stroke="#3a3a3a"/>
+
+    <!-- 6 drop lines - evenly at 103, 293, 483, 673, 863, 1057 -->
+    <line x1="103"  y1="116" x2="103"  y2="146" stroke="#3a3a3a" marker-end="url(#ah)"/>
+    <line x1="293"  y1="116" x2="293"  y2="146" stroke="#3a3a3a" marker-end="url(#ah)"/>
+    <line x1="483"  y1="116" x2="483"  y2="146" stroke="#3a3a3a" marker-end="url(#ah)"/>
+    <line x1="673"  y1="116" x2="673"  y2="146" stroke="#3a3a3a" marker-end="url(#ah)"/>
+    <line x1="863"  y1="116" x2="863"  y2="146" stroke="#3a3a3a" marker-end="url(#ah)"/>
+    <line x1="1057" y1="116" x2="1057" y2="146" stroke="#3a3a3a" marker-end="url(#ah)"/>
+
+    <!-- Strategy boxes: width 174, centered at 103,293,483,673,863,1057 -->
+    <!-- ReadersAlso -->
+    <rect x="16"  y="146" width="174" height="120" rx="4" fill="#191919" stroke="#2b2b2b"/>
+    <text x="103" y="168" text-anchor="middle" font-family="Outfit,sans-serif" font-size="14" fill="#ececec" font-weight="400">ReadersAlso</text>
+    <text x="103" y="185" text-anchor="middle" font-family="DM Mono,monospace" font-size="9" fill="#6b9ee0">CF signal</text>
+    <line x1="16" y1="192" x2="190" y2="192" stroke="#2b2b2b"/>
+    <text x="103" y="208" text-anchor="middle" font-family="Outfit,sans-serif" font-size="10.5" fill="#888">O(1) sparse lookup</text>
+    <text x="103" y="224" text-anchor="middle" font-family="Outfit,sans-serif" font-size="10.5" fill="#888">sort by CF similarity</text>
+    <text x="103" y="240" text-anchor="middle" font-family="Outfit,sans-serif" font-size="10.5" fill="#666">popular books</text>
+    <text x="103" y="256" text-anchor="middle" font-family="Outfit,sans-serif" font-size="10.5" fill="#666">dense overlap</text>
+
+    <!-- HiddenGems -->
+    <rect x="206" y="146" width="174" height="120" rx="4" fill="#191919" stroke="#2b2b2b"/>
+    <text x="293" y="168" text-anchor="middle" font-family="Outfit,sans-serif" font-size="14" fill="#ececec" font-weight="400">HiddenGems</text>
+    <text x="293" y="185" text-anchor="middle" font-family="DM Mono,monospace" font-size="9" fill="#6b9ee0">CF + penalty</text>
+    <line x1="206" y1="192" x2="380" y2="192" stroke="#2b2b2b"/>
+    <text x="293" y="208" text-anchor="middle" font-family="Outfit,sans-serif" font-size="10.5" fill="#888">same CF pool</text>
+    <text x="293" y="224" text-anchor="middle" font-family="Outfit,sans-serif" font-size="10.5" fill="#888">rerank: sim/log(count)</text>
+    <text x="293" y="240" text-anchor="middle" font-family="Outfit,sans-serif" font-size="10.5" fill="#666">underrated books</text>
+    <text x="293" y="256" text-anchor="middle" font-family="Outfit,sans-serif" font-size="10.5" fill="#666">popularity penalized</text>
+
+    <!-- SimilarThemes -->
+    <rect x="396" y="146" width="174" height="120" rx="4" fill="#191919" stroke="#2b2b2b"/>
+    <text x="483" y="168" text-anchor="middle" font-family="Outfit,sans-serif" font-size="14" fill="#ececec" font-weight="400">SimilarThemes</text>
+    <text x="483" y="185" text-anchor="middle" font-family="DM Mono,monospace" font-size="9" fill="#6abf7b">semantic</text>
+    <line x1="396" y1="192" x2="570" y2="192" stroke="#2b2b2b"/>
+    <text x="483" y="208" text-anchor="middle" font-family="Outfit,sans-serif" font-size="10.5" fill="#888">FAISS nearest neighbour</text>
+    <text x="483" y="224" text-anchor="middle" font-family="Outfit,sans-serif" font-size="10.5" fill="#888">MiniLM embeddings</text>
+    <text x="483" y="240" text-anchor="middle" font-family="Outfit,sans-serif" font-size="10.5" fill="#666">zero ratings needed</text>
+    <text x="483" y="256" text-anchor="middle" font-family="Outfit,sans-serif" font-size="10.5" fill="#666">cold start friendly</text>
+
+    <!-- SameAuthor -->
+    <rect x="586" y="146" width="174" height="120" rx="4" fill="#191919" stroke="#2b2b2b"/>
+    <text x="673" y="168" text-anchor="middle" font-family="Outfit,sans-serif" font-size="14" fill="#ececec" font-weight="400">SameAuthor</text>
+    <text x="673" y="185" text-anchor="middle" font-family="DM Mono,monospace" font-size="9" fill="#6abf7b">exact match</text>
+    <line x1="586" y1="192" x2="760" y2="192" stroke="#2b2b2b"/>
+    <text x="673" y="208" text-anchor="middle" font-family="Outfit,sans-serif" font-size="10.5" fill="#888">author string match</text>
+    <text x="673" y="224" text-anchor="middle" font-family="Outfit,sans-serif" font-size="10.5" fill="#888">sort: Bayesian avg</text>
+    <text x="673" y="240" text-anchor="middle" font-family="Outfit,sans-serif" font-size="10.5" fill="#666">no ML</text>
+    <text x="673" y="256" text-anchor="middle" font-family="Outfit,sans-serif" font-size="10.5" fill="#666">deterministic</text>
+
+    <!-- AgeGroup -->
+    <rect x="776" y="146" width="174" height="120" rx="4" fill="#191919" stroke="#2b2b2b"/>
+    <text x="863" y="168" text-anchor="middle" font-family="Outfit,sans-serif" font-size="14" fill="#ececec" font-weight="400">AgeGroup</text>
+    <text x="863" y="185" text-anchor="middle" font-family="DM Mono,monospace" font-size="9" fill="#6abf7b">demographic</text>
+    <line x1="776" y1="192" x2="950" y2="192" stroke="#2b2b2b"/>
+    <text x="863" y="208" text-anchor="middle" font-family="Outfit,sans-serif" font-size="10.5" fill="#888">dominant age bracket</text>
+    <text x="863" y="224" text-anchor="middle" font-family="Outfit,sans-serif" font-size="10.5" fill="#888">top Bayesian in group</text>
+    <text x="863" y="240" text-anchor="middle" font-family="Outfit,sans-serif" font-size="10.5" fill="#666">coarse taste proxy</text>
+    <text x="863" y="256" text-anchor="middle" font-family="Outfit,sans-serif" font-size="10.5" fill="#666">precomputed lookup</text>
+
+    <!-- TopPicks -->
+    <rect x="970" y="146" width="174" height="120" rx="4" fill="#191919" stroke="#3a3a3a"/>
+    <text x="1057" y="168" text-anchor="middle" font-family="Outfit,sans-serif" font-size="14" fill="#ececec" font-weight="400">TopPicks</text>
+    <text x="1057" y="185" text-anchor="middle" font-family="DM Mono,monospace" font-size="9" fill="#c9a96e">CF + semantic</text>
+    <line x1="970" y1="192" x2="1144" y2="192" stroke="#2b2b2b"/>
+    <text x="1057" y="208" text-anchor="middle" font-family="Outfit,sans-serif" font-size="10.5" fill="#888">0.6*CF + 0.4*semantic</text>
+    <text x="1057" y="224" text-anchor="middle" font-family="Outfit,sans-serif" font-size="10.5" fill="#888">RRF bonus + pop penalty</text>
+    <text x="1057" y="240" text-anchor="middle" font-family="Outfit,sans-serif" font-size="10.5" fill="#666">Bayesian floor: 4.5</text>
+    <text x="1057" y="256" text-anchor="middle" font-family="Outfit,sans-serif" font-size="10.5" fill="#666">edition filter (rapidfuzz)</text>
+
+    <!-- Artifact chips below each box -->
+    <rect x="16"  y="280" width="174" height="26" rx="3" fill="#111" stroke="#2b2b2b"/>
+    <text x="103" y="297" text-anchor="middle" font-family="DM Mono,monospace" font-size="8.5" fill="#555">CF matrix + isbn_index</text>
+
+    <rect x="206" y="280" width="174" height="26" rx="3" fill="#111" stroke="#2b2b2b"/>
+    <text x="293" y="297" text-anchor="middle" font-family="DM Mono,monospace" font-size="8.5" fill="#555">CF matrix + isbn_index</text>
+
+    <rect x="396" y="280" width="174" height="26" rx="3" fill="#111" stroke="#2b2b2b"/>
+    <text x="483" y="297" text-anchor="middle" font-family="DM Mono,monospace" font-size="8.5" fill="#555">FAISS + embeddings</text>
+
+    <rect x="586" y="280" width="174" height="26" rx="3" fill="#111" stroke="#2b2b2b"/>
+    <text x="673" y="297" text-anchor="middle" font-family="DM Mono,monospace" font-size="8.5" fill="#555">book_stats.parquet</text>
+
+    <rect x="776" y="280" width="174" height="26" rx="3" fill="#111" stroke="#2b2b2b"/>
+    <text x="863" y="297" text-anchor="middle" font-family="DM Mono,monospace" font-size="8.5" fill="#555">age_group_*.parquet</text>
+
+    <rect x="970" y="280" width="174" height="26" rx="3" fill="#111" stroke="#2b2b2b"/>
+    <text x="1057" y="297" text-anchor="middle" font-family="DM Mono,monospace" font-size="8.5" fill="#555">CF + FAISS + stats</text>
+
+    <!-- Connector lines to artifact chips -->
+    <line x1="103"  y1="266" x2="103"  y2="280" stroke="#2c2c2c"/>
+    <line x1="293"  y1="266" x2="293"  y2="280" stroke="#2c2c2c"/>
+    <line x1="483"  y1="266" x2="483"  y2="280" stroke="#2c2c2c"/>
+    <line x1="673"  y1="266" x2="673"  y2="280" stroke="#2c2c2c"/>
+    <line x1="863"  y1="266" x2="863"  y2="280" stroke="#2c2c2c"/>
+    <line x1="1057" y1="266" x2="1057" y2="280" stroke="#2c2c2c"/>
+
+    <!-- Footer note -->
+    <text x="580" y="336" text-anchor="middle" font-family="DM Mono,monospace" font-size="9" fill="#444">all strategies share one ArtifactLoader instance - loaded once at FastAPI startup</text>
+    <text x="580" y="354" text-anchor="middle" font-family="DM Mono,monospace" font-size="9" fill="#444">new strategy = one file + one register() call - immediately available via /recommend</text>
+  </svg>
+</div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 8: EVALUATION                                         -->
+<!-- ============================================================ -->
+<section>
+<div class="slide-body">
+  <span class="section-tag">Results</span>
+  <h2>Evaluation</h2>
+
+  <div class="graph-ph" style="flex:2; min-height:0; margin-bottom:12px; overflow:visible">
+    <img src="graphs/graph5_strategy_comparison.png" class="graph-zoom" style="width:100%; height:100%; object-fit:contain; transform-origin: center top;">
+  </div>
+
+  <div class="cols-2" style="flex:1; align-items:start">
+    <div class="eval-col works">
+      <h3>Works</h3>
+      <ul>
+        <li>CF strong for popular books - dense rating overlap</li>
+        <li>semantic - cross-genre thematic matches, zero shared raters needed</li>
+        <li>Hidden Gems - genuinely underrated books surface</li>
+        <li>SameAuthor - deterministic, no ML failure modes</li>
+        <li>six strategies complement each other</li>
+        <li>TopPicks quality gate filters low-quality noise</li>
+        <li>edition filter (rapidfuzz) removes same-book duplicates</li>
+      </ul>
+    </div>
+
+    <div class="eval-col breaks">
+      <h3>Breaks</h3>
+      <ul>
+        <li><b>niche books</b> - CF collapses, dataset sparsity not algorithm</li>
+        <li><b>no descriptions</b> - title-only embedding weak signal</li>
+        <li><b>age group</b> - coarse proxy, age does not equal taste</li>
+        <li><b>edition rating split</b> - same book, different ISBNs</li>
+        <li><b>no eval metric</b> - thresholds pragmatic not empirically tuned</li>
+        <li><b>no user identity</b> - seed-only, no personalisation</li>
+        <li><b>cold start for new books</b> - CF fails until enough ratings</li>
+      </ul>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 9: CURRENT ARCHITECTURE                               -->
+<!-- ============================================================ -->
+<section>
+<div class="slide-body">
+  <span class="section-tag">ML Engineering</span>
+  <h2>Current Architecture</h2>
+
+  <svg viewBox="0 0 1160 520" style="width:100%;flex:1" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <marker id="ca" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+        <path d="M0,0 L0,7 L7,3.5 z" fill="#3a3a3a"/>
+      </marker>
+    </defs>
+
+    <!-- ===== EXTERNAL SOURCES (outside any container) ===== -->
+    <rect x="40" y="10" width="180" height="44" rx="4" fill="#1a1a1a" stroke="#3a3a3a"/>
+    <text x="130" y="28" text-anchor="middle" font-family="DM Mono,monospace" font-size="9" fill="#555">data source</text>
+    <text x="130" y="46" text-anchor="middle" font-family="Outfit,sans-serif" font-size="13" fill="#ececec">Kaggle CSVs</text>
+
+    <rect x="820" y="10" width="180" height="44" rx="4" fill="#1a1a1a" stroke="#3a3a3a"/>
+    <text x="910" y="28" text-anchor="middle" font-family="DM Mono,monospace" font-size="9" fill="#555">external api</text>
+    <text x="910" y="46" text-anchor="middle" font-family="Outfit,sans-serif" font-size="13" fill="#ececec">Open Library</text>
+
+    <!-- ===== DOCKER CONTAINER (dashed border) ===== -->
+    <rect x="20" y="76" width="1120" height="360" rx="6" fill="none" stroke="#3a3a3a" stroke-dasharray="6,4"/>
+    <text x="36" y="94" font-family="DM Mono,monospace" font-size="9" fill="#3a3a3a" letter-spacing="1">Docker container</text>
+
+    <!-- ===== PIPELINE BOX (inside docker) ===== -->
+    <rect x="36" y="100" width="820" height="130" rx="5" fill="#141414" stroke="#2c2c2c"/>
+    <text x="52" y="118" font-family="DM Mono,monospace" font-size="9" fill="#2c2c2c" letter-spacing="1">pipeline (PySpark)</text>
+
+    <!-- 4 stage boxes inside pipeline -->
+    <!-- ingest -->
+    <rect x="52" y="122" width="160" height="44" rx="4" fill="#1a1a1a" stroke="#2c2c2c"/>
+    <text x="132" y="139" text-anchor="middle" font-family="DM Mono,monospace" font-size="8" fill="#555">stage 1</text>
+    <text x="132" y="156" text-anchor="middle" font-family="Outfit,sans-serif" font-size="12" fill="#ececec">ingest</text>
+
+    <!-- arrow -->
+    <line x1="212" y1="144" x2="232" y2="144" stroke="#2c2c2c" marker-end="url(#ca)"/>
+
+    <!-- features -->
+    <rect x="232" y="122" width="160" height="44" rx="4" fill="#1a1a1a" stroke="#2c2c2c"/>
+    <text x="312" y="139" text-anchor="middle" font-family="DM Mono,monospace" font-size="8" fill="#555">stage 2</text>
+    <text x="312" y="156" text-anchor="middle" font-family="Outfit,sans-serif" font-size="12" fill="#ececec">features</text>
+
+    <!-- arrow -->
+    <line x1="392" y1="144" x2="412" y2="144" stroke="#2c2c2c" marker-end="url(#ca)"/>
+
+    <!-- enrich -->
+    <rect x="412" y="122" width="160" height="44" rx="4" fill="#1a1a1a" stroke="#2c2c2c"/>
+    <text x="492" y="139" text-anchor="middle" font-family="DM Mono,monospace" font-size="8" fill="#555">stage 3</text>
+    <text x="492" y="156" text-anchor="middle" font-family="Outfit,sans-serif" font-size="12" fill="#ececec">enrich</text>
+
+    <!-- arrow -->
+    <line x1="572" y1="144" x2="592" y2="144" stroke="#2c2c2c" marker-end="url(#ca)"/>
+
+    <!-- embeddings -->
+    <rect x="592" y="122" width="160" height="44" rx="4" fill="#1a1a1a" stroke="#2c2c2c"/>
+    <text x="672" y="139" text-anchor="middle" font-family="DM Mono,monospace" font-size="8" fill="#555">stage 4</text>
+    <text x="672" y="156" text-anchor="middle" font-family="Outfit,sans-serif" font-size="12" fill="#ececec">embeddings</text>
+
+    <!-- Data stores row (below pipeline) -->
+    <!-- data/raw/ -->
+    <rect x="52" y="192" width="160" height="36" rx="4" fill="#111" stroke="#2b2b2b" stroke-dasharray="4,3"/>
+    <text x="132" y="206" text-anchor="middle" font-family="DM Mono,monospace" font-size="9" fill="#444">data/raw/</text>
+    <text x="132" y="220" text-anchor="middle" font-family="DM Mono,monospace" font-size="8" fill="#333">3 raw CSVs</text>
+
+    <!-- data/processed/ -->
+    <rect x="232" y="192" width="160" height="36" rx="4" fill="#111" stroke="#2b2b2b" stroke-dasharray="4,3"/>
+    <text x="312" y="206" text-anchor="middle" font-family="DM Mono,monospace" font-size="9" fill="#444">data/processed/</text>
+    <text x="312" y="220" text-anchor="middle" font-family="DM Mono,monospace" font-size="8" fill="#333">parquets + enriched</text>
+
+    <!-- artifacts/ (spans enrich + embeddings) -->
+    <rect x="412" y="192" width="340" height="36" rx="4" fill="#111" stroke="#2b2b2b" stroke-dasharray="4,3"/>
+    <text x="582" y="206" text-anchor="middle" font-family="DM Mono,monospace" font-size="9" fill="#444">artifacts/</text>
+    <text x="582" y="220" text-anchor="middle" font-family="DM Mono,monospace" font-size="8" fill="#333">CF matrix, FAISS index, embeddings, stats, age groups</text>
+
+    <!-- Vertical arrows from stages to data stores -->
+    <line x1="132" y1="166" x2="132" y2="192" stroke="#2c2c2c" marker-end="url(#ca)"/>
+    <line x1="312" y1="166" x2="312" y2="192" stroke="#2c2c2c" marker-end="url(#ca)"/>
+    <line x1="492" y1="166" x2="492" y2="192" stroke="#2c2c2c" marker-end="url(#ca)"/>
+    <line x1="672" y1="166" x2="672" y2="192" stroke="#2c2c2c" marker-end="url(#ca)"/>
+
+    <!-- ===== API + SERVE (inside docker, below) ===== -->
+    <!-- ArtifactLoader -->
+    <rect x="36" y="272" width="200" height="44" rx="4" fill="#1a1a1a" stroke="#2c2c2c"/>
+    <text x="136" y="289" text-anchor="middle" font-family="DM Mono,monospace" font-size="8" fill="#555">loads once at startup</text>
+    <text x="136" y="306" text-anchor="middle" font-family="Outfit,sans-serif" font-size="12" fill="#ececec">ArtifactLoader</text>
+
+    <!-- Arrow from artifacts down to loader -->
+    <line x1="582" y1="228" x2="582" y2="252" stroke="#2c2c2c"/>
+    <line x1="582" y1="252" x2="236" y2="252" stroke="#2c2c2c"/>
+    <line x1="236" y1="252" x2="236" y2="272" stroke="#2c2c2c" marker-end="url(#ca)"/>
+
+    <!-- Arrow loader to service -->
+    <line x1="236" y1="316" x2="276" y2="316" stroke="#2c2c2c" marker-end="url(#ca)"/>
+
+    <!-- RecommenderService -->
+    <rect x="276" y="272" width="200" height="44" rx="4" fill="#1a1a1a" stroke="#2c2c2c"/>
+    <text x="376" y="289" text-anchor="middle" font-family="DM Mono,monospace" font-size="8" fill="#555">6 strategies</text>
+    <text x="376" y="306" text-anchor="middle" font-family="Outfit,sans-serif" font-size="12" fill="#ececec">RecommenderService</text>
+
+    <!-- Arrow service to FastAPI -->
+    <line x1="476" y1="294" x2="516" y2="294" stroke="#2c2c2c" marker-end="url(#ca)"/>
+
+    <!-- FastAPI endpoints -->
+    <rect x="516" y="272" width="200" height="44" rx="4" fill="#1a1a1a" stroke="#3a3a3a"/>
+    <text x="616" y="289" text-anchor="middle" font-family="DM Mono,monospace" font-size="8" fill="#555">FastAPI endpoints</text>
+    <text x="616" y="306" text-anchor="middle" font-family="Outfit,sans-serif" font-size="12" fill="#ececec">/recommend /search</text>
+
+    <!-- Arrow FastAPI to user (outside docker) -->
+    <line x1="716" y1="294" x2="800" y2="294" stroke="#3a3a3a" marker-end="url(#ca)"/>
+    <line x1="800" y1="308" x2="716" y2="308" stroke="#3a3a3a" marker-end="url(#ca)"/>
+
+    <!-- ===== USER (outside docker) ===== -->
+    <circle cx="870" cy="300" r="46" fill="#1a1a1a" stroke="#3a3a3a"/>
+    <text x="870" y="296" text-anchor="middle" font-family="Outfit,sans-serif" font-size="13" fill="#ececec">user</text>
+    <text x="870" y="312" text-anchor="middle" font-family="DM Mono,monospace" font-size="8" fill="#555">UI / API</text>
+
+    <!-- Arrow from Kaggle to ingest -->
+    <line x1="130" y1="54" x2="130" y2="100" stroke="#3a3a3a" marker-end="url(#ca)"/>
+
+    <!-- Arrow from Open Library to enrich -->
+    <line x1="910" y1="54" x2="910" y2="80" stroke="#3a3a3a"/>
+    <line x1="910" y1="80" x2="492" y2="80" stroke="#3a3a3a"/>
+    <line x1="492" y1="80" x2="492" y2="122" stroke="#3a3a3a" marker-end="url(#ca)"/>
+
+    <!-- Note: Azure -->
+    <text x="1070" y="440" text-anchor="end" font-family="DM Mono,monospace" font-size="9" fill="#333">Azure App Service</text>
+  </svg>
+</div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 10: PRODUCTION ARCHITECTURE                           -->
+<!-- ============================================================ -->
+<section>
+<div class="slide-body">
+  <span class="section-tag">Extensions</span>
+  <h2>Production Architecture</h2>
+
+  <svg viewBox="0 0 1160 500" style="width:100%;flex:1" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <marker id="pa" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+        <path d="M0,0 L0,7 L7,3.5 z" fill="#3a3a3a"/>
+      </marker>
+    </defs>
+
+    <!-- ===== DATA SOURCES ROW ===== -->
+    <!-- PostgreSQL -->
+    <rect x="30" y="10" width="200" height="50" rx="4" fill="#1a1a1a" stroke="#6b9ee0" stroke-width="1.5"/>
+    <text x="130" y="30" text-anchor="middle" font-family="DM Mono,monospace" font-size="9" fill="#6b9ee0">live ratings + catalog</text>
+    <text x="130" y="50" text-anchor="middle" font-family="Outfit,sans-serif" font-size="14" fill="#ececec">PostgreSQL</text>
+
+    <!-- Book DB -->
+    <rect x="260" y="10" width="200" height="50" rx="4" fill="#1a1a1a" stroke="#2c2c2c"/>
+    <text x="360" y="30" text-anchor="middle" font-family="DM Mono,monospace" font-size="9" fill="#555">descriptions + subjects</text>
+    <text x="360" y="50" text-anchor="middle" font-family="Outfit,sans-serif" font-size="14" fill="#ececec">Book Metadata DB</text>
+
+    <!-- User Service -->
+    <rect x="490" y="10" width="200" height="50" rx="4" fill="#1a1a1a" stroke="#2c2c2c"/>
+    <text x="590" y="30" text-anchor="middle" font-family="DM Mono,monospace" font-size="9" fill="#555">profiles + interactions</text>
+    <text x="590" y="50" text-anchor="middle" font-family="Outfit,sans-serif" font-size="14" fill="#ececec">User Service</text>
+
+    <!-- Kaggle historical note -->
+    <rect x="30" y="74" width="200" height="28" rx="3" fill="none" stroke="#2a2a2a" stroke-dasharray="3,3"/>
+    <text x="130" y="92" text-anchor="middle" font-family="DM Mono,monospace" font-size="8.5" fill="#444">Kaggle - historical training seed</text>
+
+    <!-- ===== ML PIPELINE ===== -->
+    <rect x="30" y="120" width="660" height="68" rx="5" fill="#141414" stroke="#2c2c2c"/>
+    <text x="46" y="138" font-family="DM Mono,monospace" font-size="8" fill="#2c2c2c" letter-spacing="1">ML pipeline - Airflow / cron scheduled</text>
+
+    <!-- 4 mini stage boxes -->
+    <rect x="46"  y="143" width="130" height="34" rx="3" fill="#1a1a1a" stroke="#2b2b2b"/>
+    <text x="111" y="165" text-anchor="middle" font-family="Outfit,sans-serif" font-size="11" fill="#e0e0e0">ingest</text>
+
+    <line x1="176" y1="160" x2="192" y2="160" stroke="#2c2c2c" marker-end="url(#pa)"/>
+
+    <rect x="192" y="143" width="130" height="34" rx="3" fill="#1a1a1a" stroke="#2b2b2b"/>
+    <text x="257" y="165" text-anchor="middle" font-family="Outfit,sans-serif" font-size="11" fill="#e0e0e0">features</text>
+
+    <line x1="322" y1="160" x2="338" y2="160" stroke="#2c2c2c" marker-end="url(#pa)"/>
+
+    <rect x="338" y="143" width="130" height="34" rx="3" fill="#1a1a1a" stroke="#2b2b2b"/>
+    <text x="403" y="165" text-anchor="middle" font-family="Outfit,sans-serif" font-size="11" fill="#e0e0e0">enrich</text>
+
+    <line x1="468" y1="160" x2="484" y2="160" stroke="#2c2c2c" marker-end="url(#pa)"/>
+
+    <rect x="484" y="143" width="130" height="34" rx="3" fill="#1a1a1a" stroke="#2b2b2b"/>
+    <text x="549" y="165" text-anchor="middle" font-family="Outfit,sans-serif" font-size="11" fill="#e0e0e0">embeddings</text>
+
+    <!-- Trigger note -->
+    <text x="360" y="208" text-anchor="middle" font-family="DM Mono,monospace" font-size="8.5" fill="#444">retrain trigger: N new ratings -- blue/green swap, no downtime</text>
+
+    <!-- ===== MONGODB ATLAS ===== -->
+    <rect x="30" y="225" width="660" height="68" rx="5" fill="#1a1a1a" stroke="#c9a96e" stroke-width="1.5"/>
+    <text x="46" y="243" font-family="DM Mono,monospace" font-size="8" fill="#c9a96e" letter-spacing="1">replaces file artifacts</text>
+    <text x="360" y="268" text-anchor="middle" font-family="Outfit,sans-serif" font-size="16" fill="#ececec">MongoDB Atlas</text>
+    <line x1="30" y1="278" x2="690" y2="278" stroke="#2c2c2c"/>
+    <text x="360" y="291" text-anchor="middle" font-family="DM Mono,monospace" font-size="8.5" fill="#666">vector search (replaces FAISS) &nbsp; similarity docs (replaces .npz) &nbsp; enriched metadata documents</text>
+
+    <!-- ===== REDIS ===== -->
+    <rect x="720" y="225" width="150" height="68" rx="5" fill="#1a1a1a" stroke="#2c2c2c"/>
+    <text x="795" y="248" text-anchor="middle" font-family="DM Mono,monospace" font-size="9" fill="#555">hot results</text>
+    <text x="795" y="268" text-anchor="middle" font-family="Outfit,sans-serif" font-size="14" fill="#ececec">Redis</text>
+    <text x="795" y="285" text-anchor="middle" font-family="DM Mono,monospace" font-size="8" fill="#555">TTL invalidation</text>
+
+    <!-- ===== FASTAPI STATELESS ===== -->
+    <rect x="30" y="340" width="660" height="50" rx="5" fill="#1a1a1a" stroke="#3a3a3a"/>
+    <text x="46" y="358" font-family="DM Mono,monospace" font-size="8" fill="#444" letter-spacing="1">Kubernetes -- horizontal scale, no in-memory artifacts</text>
+    <text x="360" y="378" text-anchor="middle" font-family="Outfit,sans-serif" font-size="14" fill="#ececec">FastAPI (stateless pods)</text>
+
+    <!-- ===== USER ===== -->
+    <circle cx="940" cy="366" r="44" fill="#1a1a1a" stroke="#3a3a3a"/>
+    <text x="940" y="362" text-anchor="middle" font-family="Outfit,sans-serif" font-size="13" fill="#ececec">user</text>
+    <text x="940" y="378" text-anchor="middle" font-family="DM Mono,monospace" font-size="8" fill="#555">UI / API</text>
+
+    <!-- ===== BETTER MODELS BOX ===== -->
+    <rect x="910" y="100" width="230" height="170" rx="5" fill="#1a1a1a" stroke="#2c2c2c"/>
+    <text x="1025" y="120" text-anchor="middle" font-family="DM Mono,monospace" font-size="9" fill="#555">better models</text>
+    <text x="1025" y="142" text-anchor="middle" font-family="Outfit,sans-serif" font-size="13" fill="#ececec">NCF</text>
+    <text x="1025" y="158" text-anchor="middle" font-family="DM Mono,monospace" font-size="8" fill="#666">learned non-linear CF</text>
+    <line x1="910" y1="166" x2="1140" y2="166" stroke="#2c2c2c"/>
+    <text x="1025" y="184" text-anchor="middle" font-family="Outfit,sans-serif" font-size="13" fill="#ececec">Two-Tower</text>
+    <text x="1025" y="200" text-anchor="middle" font-family="DM Mono,monospace" font-size="8" fill="#666">user + item shared space</text>
+    <text x="1025" y="214" text-anchor="middle" font-family="DM Mono,monospace" font-size="8" fill="#666">needs user identity</text>
+    <line x1="910" y1="222" x2="1140" y2="222" stroke="#2c2c2c"/>
+    <text x="1025" y="240" text-anchor="middle" font-family="Outfit,sans-serif" font-size="13" fill="#ececec">A/B Testing</text>
+    <text x="1025" y="256" text-anchor="middle" font-family="DM Mono,monospace" font-size="8" fill="#666">precision@k, NDCG</text>
+
+    <!-- ===== ARROWS ===== -->
+    <!-- Sources to pipeline -->
+    <line x1="130" y1="60" x2="130" y2="120" stroke="#2c2c2c" marker-end="url(#pa)"/>
+    <line x1="360" y1="60" x2="360" y2="120" stroke="#2c2c2c" marker-end="url(#pa)"/>
+
+    <!-- Pipeline to Atlas -->
+    <line x1="360" y1="188" x2="360" y2="225" stroke="#2c2c2c" marker-end="url(#pa)"/>
+
+    <!-- Atlas to FastAPI -->
+    <line x1="360" y1="293" x2="360" y2="340" stroke="#2c2c2c" marker-end="url(#pa)"/>
+
+    <!-- Redis to FastAPI -->
+    <line x1="795" y1="293" x2="795" y2="320" stroke="#2c2c2c"/>
+    <line x1="795" y1="320" x2="690" y2="340" stroke="#2c2c2c" marker-end="url(#pa)"/>
+
+    <!-- FastAPI to user -->
+    <line x1="690" y1="358" x2="896" y2="358" stroke="#3a3a3a" marker-end="url(#pa)"/>
+    <line x1="896" y1="374" x2="690" y2="374" stroke="#3a3a3a" marker-end="url(#pa)"/>
+
+    <!-- User service to better models box -->
+    <line x1="590" y1="60" x2="590" y2="80" stroke="#2c2c2c"/>
+    <line x1="590" y1="80" x2="1025" y2="80" stroke="#2c2c2c"/>
+    <line x1="1025" y1="80" x2="1025" y2="100" stroke="#2c2c2c" marker-end="url(#pa)"/>
+  </svg>
+</div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 11: DEMO                                              -->
+<!-- ============================================================ -->
+<section>
+<div class="demo-slide">
+  <span class="label">Live</span>
+  <h1 style="font-size:3.5em;font-weight:200">Demo</h1>
+  <div style="margin-top:20px; display:flex; flex-direction:column; align-items:center; gap:4px">
+    <a class="demo-link" onclick="window.open('https://book-recommender-api.azurewebsites.net/docs','_blank'); return false;" href="#">API &nbsp; book-recommender-api.azurewebsites.net/docs</a>
+    <a class="demo-link" onclick="window.open('https://rma0.infinityfreeapp.com/','_blank'); return false;" href="#">UI &nbsp;&nbsp; rma0.infinityfreeapp.com</a>
+  </div>
+  <div style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:0; border:1px solid var(--b1); border-radius:5px; overflow:hidden; max-width:580px; margin-top:24px">
+    <div class="stat-item"><div class="stat-v">6</div><div class="stat-l">Strategies</div></div>
+    <div class="stat-item" style="border-left:1px solid var(--b1)"><div class="stat-v">22k</div><div class="stat-l">Books</div></div>
+    <div class="stat-item" style="border-left:1px solid var(--b1)"><div class="stat-v">433k</div><div class="stat-l">Ratings</div></div>
+    <div class="stat-item" style="border-left:1px solid var(--b1)"><div class="stat-v">live</div><div class="stat-l">Status</div></div>
+  </div>
+</div>
+</section>
+
+</div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.1.0/reveal.min.js"></script>
+<script>
+Reveal.initialize({
+  hash: true,
+  slideNumber: 'c/t',
+  transition: 'fade',
+  transitionSpeed: 'fast',
+  controls: true,
+  progress: true,
+  center: false,
+  width: 1280,
+  height: 720,
+  margin: 0.03,
+  minScale: 0.2,
+  maxScale: 2.0,
+  keyboard: true,
+});
+
+document.querySelectorAll('.clean-group').forEach(function(group) {
+  var header = group.querySelector('.clean-group-header');
+  if (!header) return;
+  header.addEventListener('click', function(e) {
+    e.stopPropagation();
+    var isOpen = group.classList.contains('open');
+    document.querySelectorAll('.clean-group').forEach(function(g) {
+      g.classList.remove('open');
+      var ic = g.querySelector('.clean-group-icon');
+      if (ic) ic.textContent = '+';
+    });
+    if (!isOpen) {
+      group.classList.add('open');
+      var ic = group.querySelector('.clean-group-icon');
+      if (ic) ic.textContent = 'x';
+    }
+  });
+});
+
+// Graph zoom overlay
+var overlay = document.createElement('div');
+overlay.id = 'graph-overlay';
+var overlayImg = document.createElement('img');
+overlay.appendChild(overlayImg);
+document.body.appendChild(overlay);
+
+var hideTimeout;
+
+function showOverlay(src) {
+  clearTimeout(hideTimeout);
+  overlayImg.src = src;
+  overlay.classList.add('visible');
+}
+
+function hideOverlay() {
+  overlay.classList.remove('visible');
+}
+
+document.querySelectorAll('.graph-zoom').forEach(function(img) {
+  img.addEventListener('mouseenter', function() {
+    showOverlay(img.src);
+  });
+  img.addEventListener('mouseleave', function() {
+    hideOverlay();
+  });
+});
+
+overlay.addEventListener('mouseenter', function() {
+  hideOverlay();
+});
+overlay.addEventListener('click', function() {
+  hideOverlay();
+});
+</script>
+</body>
+</html>
