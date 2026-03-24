@@ -2,6 +2,8 @@
 
 A book recommendation system built on the [Book-Crossings dataset](https://www.kaggle.com/datasets/arashnic/book-recommendation-dataset?select=Ratings.csv). Given a seed book, it returns recommendations across six complementary strategies: collaborative filtering, semantic search, author matching, and demographic lookups.
 
+Try the interactive demo: [https://rma0.infinityfreeapp.com/](https://rma0.infinityfreeapp.com/)
+
 ## Strategies
 
 | Strategy | Description |
@@ -12,6 +14,8 @@ A book recommendation system built on the [Book-Crossings dataset](https://www.k
 | **More by This Author** | Exact author match sorted by Bayesian average rating |
 | **Popular With Similar Readers** | Finds the seed book's dominant age group, returns top-rated books in that group |
 | **Top Picks For You** | Multi-signal fusion of CF and semantic scores, with reciprocal rank fusion bonus for books appearing in both lists and a mild popularity penalty |
+
+![Strategy Comparison](figures/graph5_strategy_comparison.png)
 
 ## Requirements
 
@@ -116,8 +120,9 @@ Then open:
 
 ## Azure Deployment
 
-- Deployed app: [https://book-recommender-api.azurewebsites.net](https://book-recommender-api.azurewebsites.net)
-- Swagger UI:  [https://book-recommender-api.azurewebsites.net/docs](https://book-recommender-api.azurewebsites.net/docs)
+- Demo app: [https://rma0.infinityfreeapp.com/](https://rma0.infinityfreeapp.com/)
+- Deployed API: [https://book-recommender-api.azurewebsites.net](https://book-recommender-api.azurewebsites.net)
+- Swagger UI: [https://book-recommender-api.azurewebsites.net/docs](https://book-recommender-api.azurewebsites.net/docs)
 
 ## Project Structure
 
@@ -203,6 +208,12 @@ Cleaning: duplicate `(User-ID, ISBN)` pairs dropped; users with fewer than 3 rat
 | `Location` | string | Free-text |
 | `Age` | int (nullable) | Clamped to 13-100; out-of-range values set to null |
 
+Data cleaning results: 271k raw books -> 22k after cleaning; 1.1M ratings -> 433k explicit ratings.
+
+![Rating Distribution](figures/graph1_rating_dist.png)
+
+![Long Tail Distribution](figures/graph2_long_tail.png)
+
 ### Stage 2: Features
 
 Builds all ML artifacts from cleaned parquets. Outputs to `artifacts/`.
@@ -233,6 +244,8 @@ Age brackets: `13-17`, `18-24`, `25-34`, `35-44`, `45-54`, `55+`
 
 **`item_similarity.npz`** - symmetric scipy CSR sparse matrix of item-item adjusted cosine similarities; only pairs with at least 2 common raters and similarity > 0.0 stored
 
+![Collaborative Filtering Similarity](figures/graph3_cf_similarity.png)
+
 ### Stage 3: Enrich
 
 Fetches descriptions and subject tags from the Open Library API.
@@ -262,6 +275,60 @@ Encodes each book into a 384-dimensional sentence embedding using `all-MiniLM-L6
 | `book_embeddings.npy` | Float32 array of shape `(N, 384)` |
 | `faiss_index.bin` | Serialised FAISS `IndexFlatIP` (exact cosine search) |
 | `embedding_isbn_map.json` | ISBN list; position `i` corresponds to row `i` in embeddings |
+
+![Embedding Space Visualization (UMAP)](figures/graph4_umap.png)
+
+## Architecture
+
+### Current Architecture
+
+The system currently uses a containerised approach with PySpark for data processing and FastAPI for serving recommendations.
+
+**Data Flow:**
+
+1. **Raw Data Ingestion**: CSV files from Kaggle (271k books, 1.1M ratings, 278k users)
+2. **PySpark Pipeline**: Four-stage distributed processing (ingest, features, enrich, embeddings)
+3. **Artifact Generation**: Produces CF matrices, FAISS indexes, embeddings, and statistics
+4. **FastAPI Service**: Loads precomputed artifacts once at startup (`ArtifactLoader`)
+5. **Strategy Registry**: Six recommendation strategies available via unified service interface
+6. **REST API**: Endpoints for search, lookup, health checks, and recommendations
+
+All artifacts are held in memory within the Docker container. Scaling requires replicating the entire container, which loads its own copy of all artifacts.
+
+![Current Architecture](figures/current_architecture.png)
+
+### Production Architecture (Proposed)
+
+For production deployment at scale, the architecture evolves to address in-memory artifact limitations.
+
+**Key Improvements:**
+
+1. **PostgreSQL**: Live ratings and catalog data replaces CSV dependency
+2. **Book Metadata DB**: Descriptions and subjects via queryable database
+3. **MongoDB Atlas**: Centralised artifact storage with vector search
+   - Replaces `item_similarity.npz` with distributed similarity documents
+   - Replaces FAISS in-memory index with MongoDB vector search
+   - Stores enriched metadata and precomputed statistics
+4. **Redis**: Hot result caching with TTL invalidation
+5. **Kubernetes**: Stateless FastAPI pods scale horizontally without in-memory artifacts
+6. **Airflow/Cron**: Scheduled ML pipeline retraining with blue-green deployment and zero downtime
+
+This architecture decouples stateless API servers from stateful ML artifacts, enabling true horizontal scaling and continuous model updates.
+
+![Production Architecture (Proposed)](figures/proposed_architecture.png)
+
+### Strategy Pattern
+
+All recommendation strategies inherit from a common `RecommendationStrategy` abstract base class. This enables runtime registration, composition, and testing.
+
+![Recommendation Strategy Pattern](figures/recommendation_strategies.png)
+
+**Design Benefits:**
+
+- New strategies can be added by creating one file and one `register()` call
+- Strategies are loosely coupled to their artifacts via dependency injection
+- `RecommenderService` composes strategies without knowing implementation details
+- Testing and mocking is straightforward for strategy comparison
 
 ## Recommender
 
